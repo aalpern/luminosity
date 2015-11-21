@@ -1,0 +1,9 @@
+_build/
+*~
+*#
+*.lrcat
+*.lrprev
+*.db
+.tscache/
+.baseDir.ts
+node_modules/
