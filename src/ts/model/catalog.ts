@@ -1,4 +1,3 @@
-"use strict";
 declare const require
 
 const knex = require('knex')
@@ -80,7 +79,40 @@ on 			LensRef.id_local = metadata.lensRef
 WHERE       name is not null
 GROUP BY    name, camera, lens
 ORDER BY    count DESC
+  `,
+
+  sidecar_files: `
+  select
+      file.id_local
+    , image.fileFormat
+    , root.absolutePath as rootPath
+    , folder.pathFromRoot as folderPath
+    , file.baseName
+    , file.extension
+
+from        AgLibraryFile           as file
+
+inner join  Adobe_images            as image
+on          file.id_local = image.rootFile
+
+inner join  AgLibraryFolder         as folder
+on          file.folder = folder.id_local
+
+inner join  AgLibraryRootFolder     as root
+on          folder.rootFolder = root.id_local
+
+where       file.sidecarExtensions  = 'JPG'
+and         image.fileFormat        = 'RAW'
 `
+}
+
+export interface SidecarFileEntry {
+  id_local: number
+  fileFormat: string
+  rootPath: string
+  folderPath: string
+  baseName: string
+  extension: string
 }
 
 export default class Catalog {
@@ -126,4 +158,7 @@ export default class Catalog {
     return this.db.raw(SQL.focal_length_distribution_by_camera_and_lens)
   }
 
+  async get_sidecar_files() : Promise<SidecarFileEntry[]> {
+    return this.db.raw(SQL.sidecar_files)
+  }
 }
