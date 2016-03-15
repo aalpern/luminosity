@@ -1,3 +1,3 @@
 # Luminosity
 
-A JavaScript library for accessing Adobe Lightroom catalogs.
+A library for accessing Adobe Lightroom catalogs.
