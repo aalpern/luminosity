@@ -119,7 +119,7 @@ type PhotoRecord struct {
 	CaptureTime time.Time   `json:"capture_time"`
 	Rating      null.String `json:"rating"`
 	ColorLabels string      `json:"color_labels"`
-	Pick        bool        `json:"pick"`
+	Pick        null.Int    `json:"pick"`
 
 	// Exif
 	DateDay      null.Int    `json:"date_day"`
@@ -141,10 +141,9 @@ type PhotoRecord struct {
 
 func (p *PhotoRecord) scan(row *sql.Rows) error {
 	var capTime string
-	var pick float64
 	err := row.Scan(&p.Id, &p.FullName, &p.Lens, &p.Camera,
 		// Image
-		&p.FileFormat, &p.FileHeight, &p.FileWidth, &p.Orientation, &capTime, &p.Rating, &p.ColorLabels, &pick,
+		&p.FileFormat, &p.FileHeight, &p.FileWidth, &p.Orientation, &capTime, &p.Rating, &p.ColorLabels, &p.Pick,
 		// Exif
 		&p.DateDay, &p.DateMonth, &p.DateYear, &p.FlashFired, &p.ISO, &p.ShutterSpeed, &p.FocalLength, &p.Aperture,
 		&p.HasGPS, &p.Latitude, &p.Longitude,
@@ -154,6 +153,7 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 	if err != nil {
 		return err
 	}
+
 	p.CaptureTime, err = time.Parse("2006-01-02T15:04:05", capTime)
 	return err
 }
