@@ -238,7 +238,7 @@ type DistributionEntry struct {
 }
 
 func (c *Catalog) GetLensDistribution() ([]*DistributionEntry, error) {
-	const sql = `
+	const query = `
 SELECT    LensRef.id_local      as id,
           LensRef.value         as name,
           count(LensRef.value)  as count
@@ -250,11 +250,11 @@ WHERE     id is not null
 GROUP BY  id
 ORDER BY  count desc
 `
-	return c.queryDistribution(sql)
+	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
 func (c *Catalog) GetFocalLengthDistribution() ([]*DistributionEntry, error) {
-	const sql = `
+	const query = `
 SELECT id_local          as id,
        focalLength       as name,
        count(id_local)   as count
@@ -264,11 +264,11 @@ WHERE       focalLength is not null
 GROUP BY    focalLength
 ORDER BY    count DESC
 `
-	return c.queryDistribution(sql)
+	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
 func (c *Catalog) GetCameraDistribution() ([]*DistributionEntry, error) {
-	const sql = `
+	const query = `
 SELECT    Camera.id_local       as id,
           Camera.value          as name,
           count(Camera.value)   as count
@@ -280,63 +280,49 @@ WHERE     id is not null
 GROUP BY  id
 ORDER BY  count desc
 `
-	return c.queryDistribution(sql)
+	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
 func (c *Catalog) GetApertureDistribution() ([]*DistributionEntry, error) {
-	const sql = `
+	const query = `
 SELECT   aperture,
          count(aperture)
 FROM     AgHarvestedExifMetadata
 WHERE    aperture is not null
 GROUP BY aperture
 `
-	rows, err := c.db.Query(sql)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var entries []*DistributionEntry
-	for rows.Next() {
+	return c.queryDistribution(query, func(row *sql.Rows) (*DistributionEntry, error) {
 		var aperture float64
 		var count int64
-		if err := rows.Scan(&aperture, &count); err != nil {
+		if err := row.Scan(&aperture, &count); err != nil {
 			return nil, err
 		}
-		entries = append(entries, &DistributionEntry{
+		return &DistributionEntry{
 			Label: fmt.Sprintf("%.1f", ApertureToFNumber(aperture)),
 			Count: count,
-		})
-	}
-	return entries, nil
+		}, nil
+	})
 }
 
 func (c *Catalog) GetExposureTimeDistribution() ([]*DistributionEntry, error) {
-	const sql = `
+	const query = `
 select shutterSpeed, count(*)
 from AgHarvestedExifMetadata
 where shutterSpeed is not null
 group by shutterSpeed
 order by shutterSpeed
 `
-	rows, err := c.db.Query(sql)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var entries []*DistributionEntry
-	for rows.Next() {
+	return c.queryDistribution(query, func(row *sql.Rows) (*DistributionEntry, error) {
 		var shutter float64
 		var count int64
-		if err := rows.Scan(&shutter, &count); err != nil {
+		if err := row.Scan(&shutter, &count); err != nil {
 			return nil, err
 		}
-		entries = append(entries, &DistributionEntry{
+		return &DistributionEntry{
 			Label: ShutterSpeedToExposureTime(shutter),
 			Count: count,
-		})
-	}
-	return entries, nil
+		}, nil
+	})
 }
 
 func ApertureToFNumber(a float64) float64 {
@@ -348,28 +334,38 @@ func ShutterSpeedToExposureTime(a float64) string {
 	return fmt.Sprintf("1/%.0f", exposure)
 }
 
-func (c *Catalog) queryDistribution(sql string) ([]*DistributionEntry, error) {
+type distributionConvertor func(*sql.Rows) (*DistributionEntry, error)
+
+func defaultDistributionConvertor(rows *sql.Rows) (*DistributionEntry, error) {
+	var label string
+	var id, count int64
+	if err := rows.Scan(&id, &label, &count); err != nil {
+		return nil, err
+	}
+	return &DistributionEntry{
+		Id:    id,
+		Label: label,
+		Count: count,
+	}, nil
+}
+
+func (c *Catalog) queryDistribution(sql string, fn distributionConvertor) ([]*DistributionEntry, error) {
 	rows, err := c.db.Query(sql)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return convertDistribution(rows)
+	return convertDistribution(rows, fn)
 }
 
-func convertDistribution(rows *sql.Rows) ([]*DistributionEntry, error) {
+func convertDistribution(rows *sql.Rows, fn distributionConvertor) ([]*DistributionEntry, error) {
 	var entries []*DistributionEntry
 	for rows.Next() {
-		var label string
-		var id, count int64
-		if err := rows.Scan(&id, &label, &count); err != nil {
+		if entry, err := fn(rows); err != nil {
 			return nil, err
+		} else {
+			entries = append(entries, entry)
 		}
-		entries = append(entries, &DistributionEntry{
-			Id:    id,
-			Label: label,
-			Count: count,
-		})
 	}
 	return entries, nil
 }
