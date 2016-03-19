@@ -3,7 +3,9 @@ package luminosity
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
+	"strconv"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -127,9 +129,11 @@ type PhotoRecord struct {
 	DateYear     null.Int    `json:"date_year"`
 	FlashFired   null.Bool   `json:"flash_fired"`
 	ISO          null.String `json:"iso"`
-	ShutterSpeed null.String `json:"shutter_speed"`
+	ShutterSpeed float64     `json:"shutter_speed"`
+	ExposureTime string      `json:"exposure_time"`
 	FocalLength  null.String `json:"focal_length"`
-	Aperture     null.String `json:"aperture"`
+	Aperture     float64     `json:"aperture"`
+	FNumber      string      `json:"fnumber"`
 	HasGPS       bool        `json:"has_gps"`
 	Latitude     null.Float  `json:"lat"`
 	Longitude    null.Float  `json:"lon"`
@@ -141,11 +145,13 @@ type PhotoRecord struct {
 
 func (p *PhotoRecord) scan(row *sql.Rows) error {
 	var capTime string
+	var apertureString null.String
+	var shutterSpeedString null.String
 	err := row.Scan(&p.Id, &p.FullName, &p.Lens, &p.Camera,
 		// Image
 		&p.FileFormat, &p.FileHeight, &p.FileWidth, &p.Orientation, &capTime, &p.Rating, &p.ColorLabels, &p.Pick,
 		// Exif
-		&p.DateDay, &p.DateMonth, &p.DateYear, &p.FlashFired, &p.ISO, &p.ShutterSpeed, &p.FocalLength, &p.Aperture,
+		&p.DateDay, &p.DateMonth, &p.DateYear, &p.FlashFired, &p.ISO, &shutterSpeedString, &p.FocalLength, &apertureString,
 		&p.HasGPS, &p.Latitude, &p.Longitude,
 		// Iptc
 		&p.Caption, &p.Copyright,
@@ -155,7 +161,28 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 	}
 
 	p.CaptureTime, err = time.Parse("2006-01-02T15:04:05", capTime)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if shutterSpeedString.Valid {
+		shutterSpeed, err := strconv.ParseFloat(shutterSpeedString.String, 64)
+		if err != nil {
+			return err
+		}
+		p.ShutterSpeed = shutterSpeed
+		p.ExposureTime = ShutterSpeedToExposureTime(shutterSpeed)
+	}
+
+	if apertureString.Valid {
+		aperture, err := strconv.ParseFloat(apertureString.String, 64)
+		if err != nil {
+			return err
+		}
+		p.Aperture = aperture
+		p.FNumber = fmt.Sprintf("%.1f", ApertureToFNumber(aperture))
+	}
+	return nil
 }
 
 func (c *Catalog) ForEachPhoto(handler func(*PhotoRecord) error) error {
@@ -254,6 +281,71 @@ GROUP BY  id
 ORDER BY  count desc
 `
 	return c.queryDistribution(sql)
+}
+
+func (c *Catalog) GetApertureDistribution() ([]*DistributionEntry, error) {
+	const sql = `
+SELECT   aperture,
+         count(aperture)
+FROM     AgHarvestedExifMetadata
+WHERE    aperture is not null
+GROUP BY aperture
+`
+	rows, err := c.db.Query(sql)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []*DistributionEntry
+	for rows.Next() {
+		var aperture float64
+		var count int64
+		if err := rows.Scan(&aperture, &count); err != nil {
+			return nil, err
+		}
+		entries = append(entries, &DistributionEntry{
+			Label: fmt.Sprintf("%.1f", ApertureToFNumber(aperture)),
+			Count: count,
+		})
+	}
+	return entries, nil
+}
+
+func (c *Catalog) GetExposureTimeDistribution() ([]*DistributionEntry, error) {
+	const sql = `
+select shutterSpeed, count(*)
+from AgHarvestedExifMetadata
+where shutterSpeed is not null
+group by shutterSpeed
+order by shutterSpeed
+`
+	rows, err := c.db.Query(sql)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []*DistributionEntry
+	for rows.Next() {
+		var shutter float64
+		var count int64
+		if err := rows.Scan(&shutter, &count); err != nil {
+			return nil, err
+		}
+		entries = append(entries, &DistributionEntry{
+			Label: ShutterSpeedToExposureTime(shutter),
+			Count: count,
+		})
+	}
+	return entries, nil
+}
+
+func ApertureToFNumber(a float64) float64 {
+	return math.Exp2(a / 2)
+}
+
+func ShutterSpeedToExposureTime(a float64) string {
+	exposure := math.Exp2(a)
+	return fmt.Sprintf("1/%.0f", exposure)
 }
 
 func (c *Catalog) queryDistribution(sql string) ([]*DistributionEntry, error) {
