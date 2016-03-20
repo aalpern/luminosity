@@ -33,6 +33,10 @@ type NamedObject struct {
 	Name string `json:"name"`
 }
 
+func (c *Catalog) Close() error {
+	return c.db.Close()
+}
+
 func (c *Catalog) GetLenses() ([]*NamedObject, error) {
 	return c.queryNamedObjects("select id_local, value from AgInternedExifLens")
 }
