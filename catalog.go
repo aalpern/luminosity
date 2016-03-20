@@ -293,6 +293,7 @@ SELECT   aperture,
 FROM     AgHarvestedExifMetadata
 WHERE    aperture is not null
 GROUP BY aperture
+ORDER BY aperture
 `
 	return c.queryDistribution(query, func(row *sql.Rows) (*DistributionEntry, error) {
 		var aperture float64
@@ -309,11 +310,12 @@ GROUP BY aperture
 
 func (c *Catalog) GetExposureTimeDistribution() ([]*DistributionEntry, error) {
 	const query = `
-select shutterSpeed, count(*)
-from AgHarvestedExifMetadata
-where shutterSpeed is not null
-group by shutterSpeed
-order by shutterSpeed
+SELECT   shutterSpeed,
+         count(shutterSpeed)
+FROM     AgHarvestedExifMetadata
+WHERE    shutterSpeed is not null
+GROUP BY shutterSpeed
+ORDER BY shutterSpeed
 `
 	return c.queryDistribution(query, func(row *sql.Rows) (*DistributionEntry, error) {
 		var shutter float64
