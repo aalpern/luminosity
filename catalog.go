@@ -3,7 +3,6 @@ package luminosity
 import (
 	"database/sql"
 	"fmt"
-	"math"
 	"os"
 	"strconv"
 	"time"
@@ -327,15 +326,6 @@ order by shutterSpeed
 			Count: count,
 		}, nil
 	})
-}
-
-func ApertureToFNumber(a float64) float64 {
-	return math.Exp2(a / 2)
-}
-
-func ShutterSpeedToExposureTime(a float64) string {
-	exposure := math.Exp2(a)
-	return fmt.Sprintf("1/%.0f", exposure)
 }
 
 type distributionConvertor func(*sql.Rows) (*DistributionEntry, error)
