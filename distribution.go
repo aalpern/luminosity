@@ -20,14 +20,16 @@ type DistributionEntry struct {
 	Count int64  `json:"count"`
 }
 
-func distributionListToMap(dist []*DistributionEntry) (m map[string]*DistributionEntry) {
+type DistributionList []*DistributionEntry
+
+func distributionListToMap(dist DistributionList) (m map[string]*DistributionEntry) {
 	for _, d := range dist {
 		m[d.Label] = copyDistributionEntry(d)
 	}
 	return m
 }
 
-func mapToDistributionList(m map[string]*DistributionEntry) (d []*DistributionEntry) {
+func mapToDistributionList(m map[string]*DistributionEntry) (d DistributionList) {
 	for _, e := range m {
 		d = append(d, e)
 	}
@@ -42,7 +44,7 @@ func copyDistributionEntry(d *DistributionEntry) *DistributionEntry {
 	}
 }
 
-func MergeDistributions(dists ...[]*DistributionEntry) []*DistributionEntry {
+func MergeDistributions(dists ...DistributionList) DistributionList {
 	merged := map[string]*DistributionEntry{}
 	for _, dist := range dists {
 		for _, entry := range dist {
@@ -54,21 +56,23 @@ func MergeDistributions(dists ...[]*DistributionEntry) []*DistributionEntry {
 		}
 	}
 	list := mapToDistributionList(merged)
-	sort.Sort(ByLabel(list))
+	sort.Sort(list)
 	return list
 }
 
-type ByLabel []*DistributionEntry
+func (dl DistributionList) Merge(dists ...DistributionList) DistributionList {
+	return MergeDistributions(append(dists, dl)...)
+}
 
-func (a ByLabel) Len() int           { return len(a) }
-func (a ByLabel) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByLabel) Less(i, j int) bool { return a[i].Label < a[j].Label }
+func (a DistributionList) Len() int           { return len(a) }
+func (a DistributionList) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a DistributionList) Less(i, j int) bool { return a[i].Label < a[j].Label }
 
 // ----------------------------------------------------------------------
 // Distribution Queries
 // ----------------------------------------------------------------------
 
-func (c *Catalog) GetPhotoCountsByDate() ([]*DistributionEntry, error) {
+func (c *Catalog) GetPhotoCountsByDate() (DistributionList, error) {
 	const query = `
 SELECT 0,
        date(captureTime),
@@ -80,7 +84,7 @@ ORDER  BY date(captureTime)
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
-func (c *Catalog) GetLensDistribution() ([]*DistributionEntry, error) {
+func (c *Catalog) GetLensDistribution() (DistributionList, error) {
 	const query = `
 SELECT    LensRef.id_local      as id,
           LensRef.value         as name,
@@ -96,7 +100,7 @@ ORDER BY  count desc
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
-func (c *Catalog) GetFocalLengthDistribution() ([]*DistributionEntry, error) {
+func (c *Catalog) GetFocalLengthDistribution() (DistributionList, error) {
 	const query = `
 SELECT id_local          as id,
        focalLength       as name,
@@ -110,7 +114,7 @@ ORDER BY    count DESC
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
-func (c *Catalog) GetCameraDistribution() ([]*DistributionEntry, error) {
+func (c *Catalog) GetCameraDistribution() (DistributionList, error) {
 	const query = `
 SELECT    Camera.id_local       as id,
           Camera.value          as name,
@@ -126,7 +130,7 @@ ORDER BY  count desc
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
-func (c *Catalog) GetApertureDistribution() ([]*DistributionEntry, error) {
+func (c *Catalog) GetApertureDistribution() (DistributionList, error) {
 	const query = `
 SELECT   aperture,
          count(aperture)
@@ -148,7 +152,7 @@ ORDER BY aperture
 	})
 }
 
-func (c *Catalog) GetExposureTimeDistribution() ([]*DistributionEntry, error) {
+func (c *Catalog) GetExposureTimeDistribution() (DistributionList, error) {
 	const query = `
 SELECT   shutterSpeed,
          count(shutterSpeed)
@@ -185,7 +189,7 @@ func defaultDistributionConvertor(rows *sql.Rows) (*DistributionEntry, error) {
 	}, nil
 }
 
-func (c *Catalog) queryDistribution(sql string, fn distributionConvertor) ([]*DistributionEntry, error) {
+func (c *Catalog) queryDistribution(sql string, fn distributionConvertor) (DistributionList, error) {
 	rows, err := c.db.Query(sql)
 	if err != nil {
 		return nil, err
@@ -194,8 +198,8 @@ func (c *Catalog) queryDistribution(sql string, fn distributionConvertor) ([]*Di
 	return convertDistribution(rows, fn)
 }
 
-func convertDistribution(rows *sql.Rows, fn distributionConvertor) ([]*DistributionEntry, error) {
-	var entries []*DistributionEntry
+func convertDistribution(rows *sql.Rows, fn distributionConvertor) (DistributionList, error) {
+	var entries DistributionList
 	for rows.Next() {
 		if entry, err := fn(rows); err != nil {
 			return nil, err
@@ -204,4 +208,68 @@ func convertDistribution(rows *sql.Rows, fn distributionConvertor) ([]*Distribut
 		}
 	}
 	return entries, nil
+}
+
+// ----------------------------------------------------------------------
+// Composite Stats Object
+// ----------------------------------------------------------------------
+
+type Stats struct {
+	ByDate         DistributionList `json:"by_date"`
+	ByCamera       DistributionList `json:"by_camera"`
+	ByLens         DistributionList `json:"by_lens"`
+	ByFocalLength  DistributionList `json:"by_focal_length"`
+	ByAperture     DistributionList `json:"by_aperture"`
+	ByExposureTime DistributionList `json:"by_exposure_time"`
+}
+
+func (s *Stats) Merge(other *Stats) {
+	s.ByDate = s.ByDate.Merge(other.ByDate)
+	s.ByCamera = s.ByCamera.Merge(other.ByCamera)
+	s.ByLens = s.ByLens.Merge(other.ByLens)
+	s.ByFocalLength = s.ByFocalLength.Merge(other.ByFocalLength)
+	s.ByAperture = s.ByAperture.Merge(other.ByAperture)
+	s.ByExposureTime = s.ByExposureTime.Merge(other.ByExposureTime)
+}
+
+func (c *Catalog) GetStats() (*Stats, error) {
+	s := &Stats{}
+
+	if d, err := c.GetPhotoCountsByDate(); err != nil {
+		return nil, err
+	} else {
+		s.ByDate = d
+	}
+
+	if d, err := c.GetCameraDistribution(); err != nil {
+		return nil, err
+	} else {
+		s.ByCamera = d
+	}
+
+	if d, err := c.GetLensDistribution(); err != nil {
+		return nil, err
+	} else {
+		s.ByLens = d
+	}
+
+	if d, err := c.GetFocalLengthDistribution(); err != nil {
+		return nil, err
+	} else {
+		s.ByFocalLength = d
+	}
+
+	if d, err := c.GetApertureDistribution(); err != nil {
+		return nil, err
+	} else {
+		s.ByAperture = d
+	}
+
+	if d, err := c.GetExposureTimeDistribution(); err != nil {
+		return nil, err
+	} else {
+		s.ByExposureTime = d
+	}
+
+	return s, nil
 }
