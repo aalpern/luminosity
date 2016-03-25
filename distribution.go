@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+
+	"gopkg.in/guregu/null.v3"
 )
 
 const (
@@ -21,15 +23,16 @@ type DistributionEntry struct {
 }
 
 type DistributionList []*DistributionEntry
+type DistributionMap map[string]*DistributionEntry
 
-func distributionListToMap(dist DistributionList) (m map[string]*DistributionEntry) {
-	for _, d := range dist {
+func (l DistributionList) ToMap() (m DistributionMap) {
+	for _, d := range l {
 		m[d.Label] = copyDistributionEntry(d)
 	}
 	return m
 }
 
-func mapToDistributionList(m map[string]*DistributionEntry) (d DistributionList) {
+func (m DistributionMap) ToList() (d DistributionList) {
 	for _, e := range m {
 		d = append(d, e)
 	}
@@ -45,7 +48,7 @@ func copyDistributionEntry(d *DistributionEntry) *DistributionEntry {
 }
 
 func MergeDistributions(dists ...DistributionList) DistributionList {
-	merged := map[string]*DistributionEntry{}
+	merged := DistributionMap{}
 	for _, dist := range dists {
 		for _, entry := range dist {
 			if target, ok := merged[entry.Label]; ok {
@@ -55,7 +58,7 @@ func MergeDistributions(dists ...DistributionList) DistributionList {
 			}
 		}
 	}
-	list := mapToDistributionList(merged)
+	list := merged.ToList()
 	sort.Sort(list)
 	return list
 }
@@ -82,6 +85,15 @@ GROUP  BY date(captureTime)
 ORDER  BY date(captureTime)
 `
 	return c.queryDistribution(query, defaultDistributionConvertor)
+}
+
+type ByDate DistributionList
+
+func (a ByDate) Len() int      { return len(a) }
+func (a ByDate) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ByDate) Less(i, j int) bool {
+
+	return a[i].Label < a[j].Label
 }
 
 func (c *Catalog) GetLensDistribution() (DistributionList, error) {
@@ -177,14 +189,14 @@ ORDER BY shutterSpeed
 type distributionConvertor func(*sql.Rows) (*DistributionEntry, error)
 
 func defaultDistributionConvertor(rows *sql.Rows) (*DistributionEntry, error) {
-	var label string
+	var label null.String
 	var id, count int64
 	if err := rows.Scan(&id, &label, &count); err != nil {
 		return nil, err
 	}
 	return &DistributionEntry{
 		Id:    id,
-		Label: label,
+		Label: label.String,
 		Count: count,
 	}, nil
 }
@@ -211,6 +223,26 @@ func convertDistribution(rows *sql.Rows, fn distributionConvertor) (Distribution
 }
 
 // ----------------------------------------------------------------------
+// Starburst Stats
+// ----------------------------------------------------------------------
+
+const query = `
+SELECT    count(*)          as count,
+          image.id_local    as id,
+          Camera.Value      as Camera,
+          Lens.value        as Lens,
+          exif.aperture     as Aperture,
+          exif.focalLength  as FocalLength
+FROM      Adobe_images              image
+JOIN      AgharvestedExifMetadata   exif      ON  image.id_local  = exif.image
+LEFT JOIN AgInternedExifLens        Lens      ON  Lens.id_Local   = exif.lensRef
+LEFT JOIN AgInternedExifCameraModel Camera    ON  Camera.id_local = exif.cameraModelRef
+WHERE camera is not null and lens is not null
+GROUP BY Camera, Lens, Aperture, FocalLength
+ORDER BY Camera, Lens, Aperture, FocalLength, count
+`
+
+// ----------------------------------------------------------------------
 // Composite Stats Object
 // ----------------------------------------------------------------------
 
@@ -223,6 +255,17 @@ type Stats struct {
 	ByExposureTime DistributionList `json:"by_exposure_time"`
 }
 
+func newStats() *Stats {
+	return &Stats{
+		ByDate:         DistributionList{},
+		ByCamera:       DistributionList{},
+		ByLens:         DistributionList{},
+		ByFocalLength:  DistributionList{},
+		ByAperture:     DistributionList{},
+		ByExposureTime: DistributionList{},
+	}
+}
+
 func (s *Stats) Merge(other *Stats) {
 	s.ByDate = s.ByDate.Merge(other.ByDate)
 	s.ByCamera = s.ByCamera.Merge(other.ByCamera)
@@ -230,6 +273,8 @@ func (s *Stats) Merge(other *Stats) {
 	s.ByFocalLength = s.ByFocalLength.Merge(other.ByFocalLength)
 	s.ByAperture = s.ByAperture.Merge(other.ByAperture)
 	s.ByExposureTime = s.ByExposureTime.Merge(other.ByExposureTime)
+
+	sort.Sort(ByDate(s.ByDate))
 }
 
 func (c *Catalog) GetStats() (*Stats, error) {

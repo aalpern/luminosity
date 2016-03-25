@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -11,9 +12,78 @@ import (
 	"gopkg.in/guregu/null.v3"
 )
 
+// ----------------------------------------------------------------------
+// NamedObject
+// ----------------------------------------------------------------------
+
+type NamedObject struct {
+	Id   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+type NamedObjectList []*NamedObject
+type NamedObjectMap map[string]*NamedObject
+
+type ByName NamedObjectList
+
+func (a ByName) Len() int           { return len(a) }
+func (a ByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
+
+func (l NamedObjectList) ToMap() NamedObjectMap {
+	m := NamedObjectMap{}
+	for _, o := range l {
+		m[o.Name] = o
+	}
+	return m
+}
+
+func (m NamedObjectMap) ToList() NamedObjectList {
+	l := NamedObjectList{}
+	for _, o := range m {
+		l = append(l, o)
+	}
+	sort.Sort(ByName(l))
+	return l
+}
+
+func (l NamedObjectList) Merge(other NamedObjectList) NamedObjectList {
+	m := l.ToMap()
+	for _, o := range other {
+		if _, ok := m[o.Name]; !ok {
+			m[o.Name] = o
+		}
+	}
+	l2 := m.ToList()
+	sort.Sort(ByName(l2))
+	return l2
+}
+
+func convertNamedObjects(rows *sql.Rows) (NamedObjectList, error) {
+	var objects NamedObjectList
+	for rows.Next() {
+		var name null.String
+		obj := &NamedObject{}
+		if err := rows.Scan(&obj.Id, &name); err != nil {
+			return nil, err
+		}
+		obj.Name = name.String
+		objects = append(objects, obj)
+	}
+	return objects, nil
+}
+
+// ----------------------------------------------------------------------
+// Catalog
+// ----------------------------------------------------------------------
+
 type Catalog struct {
-	db   *sql.DB
-	path string
+	db      *sql.DB
+	Paths   []string        `json:"paths"`
+	Lenses  NamedObjectList `json:"lenses"`
+	Cameras NamedObjectList `json:"cameras"`
+	Stats   *Stats          `json:"stats"`
+	Photos  []*PhotoRecord  `json:"photos"`
 }
 
 func OpenCatalog(path string) (*Catalog, error) {
@@ -22,47 +92,82 @@ func OpenCatalog(path string) (*Catalog, error) {
 		return nil, err
 	}
 	return &Catalog{
-		db:   db,
-		path: path,
+		db: db,
+		Paths: []string{
+			path,
+		},
+		Stats:   newStats(),
+		Lenses:  NamedObjectList{},
+		Cameras: NamedObjectList{},
 	}, nil
 }
 
-type NamedObject struct {
-	Id   int64  `json:"id"`
-	Name string `json:"name"`
+func NewCatalog() *Catalog {
+	return &Catalog{
+		Stats:   newStats(),
+		Lenses:  NamedObjectList{},
+		Cameras: NamedObjectList{},
+	}
+}
+
+func (c *Catalog) Load() error {
+	lenses, err := c.GetLenses()
+	if err != nil {
+		return err
+	}
+	c.Lenses = lenses
+
+	cameras, err := c.GetCameras()
+	if err != nil {
+		return err
+	}
+	c.Cameras = cameras
+
+	stats, err := c.GetStats()
+	if err != nil {
+		return err
+	}
+	c.Stats = stats
+
+	photos, err := c.GetPhotos()
+	if err != nil {
+		return err
+	}
+	c.Photos = photos
+
+	return nil
+}
+
+func (c *Catalog) Merge(other *Catalog) {
+	if other == nil {
+		return
+	}
+	c.Paths = append(c.Paths, other.Paths...)
+	c.Stats.Merge(other.Stats)
+	c.Cameras = c.Cameras.Merge(other.Cameras)
+	c.Lenses = c.Lenses.Merge(other.Lenses)
+	c.Photos = append(c.Photos, other.Photos...)
 }
 
 func (c *Catalog) Close() error {
 	return c.db.Close()
 }
 
-func (c *Catalog) GetLenses() ([]*NamedObject, error) {
+func (c *Catalog) GetLenses() (NamedObjectList, error) {
 	return c.queryNamedObjects("select id_local, value from AgInternedExifLens")
 }
 
-func (c *Catalog) GetCameras() ([]*NamedObject, error) {
+func (c *Catalog) GetCameras() (NamedObjectList, error) {
 	return c.queryNamedObjects("select id_local, value from AgInternedExifCameraModel")
 }
 
-func (c *Catalog) queryNamedObjects(sql string) ([]*NamedObject, error) {
+func (c *Catalog) queryNamedObjects(sql string) (NamedObjectList, error) {
 	rows, err := c.db.Query(sql)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	return convertNamedObjects(rows)
-}
-
-func convertNamedObjects(rows *sql.Rows) ([]*NamedObject, error) {
-	var objects []*NamedObject
-	for rows.Next() {
-		obj := &NamedObject{}
-		if err := rows.Scan(&obj.Id, &obj.Name); err != nil {
-			return nil, err
-		}
-		objects = append(objects, obj)
-	}
-	return objects, nil
 }
 
 // ----------------------------------------------------------------------
@@ -146,6 +251,20 @@ type PhotoRecord struct {
 	Copyright null.String `json:"copyright"`
 }
 
+func parseTime(s string) (time.Time, error) {
+	var formats = []string{
+		"2006-01-02T15:04:05+07:00",
+		"2006-01-02T15:04:05",
+	}
+	var err error
+	for _, f := range formats {
+		if t, err := time.Parse(f, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, err
+}
+
 func (p *PhotoRecord) scan(row *sql.Rows) error {
 	var capTime string
 	var apertureString null.String
@@ -163,7 +282,7 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 		return err
 	}
 
-	p.CaptureTime, err = time.Parse("2006-01-02T15:04:05", capTime)
+	p.CaptureTime, err = parseTime(capTime)
 	if err != nil {
 		return err
 	}
@@ -213,9 +332,12 @@ func (c *Catalog) GetPhotoCount() (int64, error) {
 }
 
 func (c *Catalog) GetPhotos() ([]*PhotoRecord, error) {
-	// TODO - get count first to set photos capacity
-	var photos []*PhotoRecord
-	err := c.ForEachPhoto(func(p *PhotoRecord) error {
+	count, err := c.GetPhotoCount()
+	if err != nil {
+		return nil, err
+	}
+	photos := make([]*PhotoRecord, 0, count)
+	err = c.ForEachPhoto(func(p *PhotoRecord) error {
 		photos = append(photos, p)
 		return nil
 	})
