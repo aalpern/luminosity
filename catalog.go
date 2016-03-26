@@ -178,8 +178,8 @@ const (
 	kPhotoRecordSelect = `
 SELECT    image.id_local as id,
           rootFolder.absolutePath || folder.pathFromRoot || rootfile.baseName || '.' || rootfile.extension AS fullName,
-          Lens.value as Lens,
-          Camera.Value as Camera,
+          coalesce(Lens.value, 'Unknown') as Lens,
+          coalesce(Camera.Value, 'Unknown') as Camera,
           image.fileFormat,
           image.fileHeight,
           image.fileWidth,
@@ -204,11 +204,11 @@ SELECT    image.id_local as id,
 `
 	kPhotoRecordFrom = `
 FROM      Adobe_images              image
-JOIN      AgLibraryIPTC             iptc       ON      image.id_local =     iptc.image
 JOIN      AgLibraryFile             rootFile   ON   rootfile.id_local =    image.rootFile
 JOIN      AgLibraryFolder           folder     ON     folder.id_local = rootfile.folder
 JOIN      AgLibraryRootFolder       rootFolder ON rootFolder.id_local =   folder.rootFolder
-JOIN      AgharvestedExifMetadata   exif       ON      image.id_local =     exif.image
+LEFT JOIN AgLibraryIPTC             iptc       ON      image.id_local =     iptc.image
+LEFT JOIN AgharvestedExifMetadata   exif       ON      image.id_local =     exif.image
 LEFT JOIN AgInternedExifLens        Lens       ON       Lens.id_Local =     exif.lensRef
 LEFT JOIN AgInternedExifCameraModel Camera     ON     Camera.id_local =     exif.cameraModelRef
 `
@@ -266,7 +266,7 @@ func parseTime(s string) (time.Time, error) {
 }
 
 func (p *PhotoRecord) scan(row *sql.Rows) error {
-	var capTime string
+	var capTime null.String
 	var apertureString null.String
 	var shutterSpeedString null.String
 	err := row.Scan(&p.Id, &p.FullName, &p.Lens, &p.Camera,
@@ -282,9 +282,11 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 		return err
 	}
 
-	p.CaptureTime, err = parseTime(capTime)
-	if err != nil {
-		return err
+	if capTime.Valid {
+		p.CaptureTime, err = parseTime(capTime.String)
+		if err != nil {
+			return err
+		}
 	}
 
 	if shutterSpeedString.Valid {
