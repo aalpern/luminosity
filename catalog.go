@@ -1,10 +1,10 @@
+// A library for accessing Adobe Lightroom catalogs.
 package luminosity
 
 import (
 	"database/sql"
 	"fmt"
 	"os"
-	"sort"
 	"strconv"
 	"time"
 
@@ -12,71 +12,8 @@ import (
 	"gopkg.in/guregu/null.v3"
 )
 
-// ----------------------------------------------------------------------
-// NamedObject
-// ----------------------------------------------------------------------
-
-type NamedObject struct {
-	Id   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
-type NamedObjectList []*NamedObject
-type NamedObjectMap map[string]*NamedObject
-
-type ByName NamedObjectList
-
-func (a ByName) Len() int           { return len(a) }
-func (a ByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
-
-func (l NamedObjectList) ToMap() NamedObjectMap {
-	m := NamedObjectMap{}
-	for _, o := range l {
-		m[o.Name] = o
-	}
-	return m
-}
-
-func (m NamedObjectMap) ToList() NamedObjectList {
-	l := NamedObjectList{}
-	for _, o := range m {
-		l = append(l, o)
-	}
-	sort.Sort(ByName(l))
-	return l
-}
-
-func (l NamedObjectList) Merge(other NamedObjectList) NamedObjectList {
-	m := l.ToMap()
-	for _, o := range other {
-		if _, ok := m[o.Name]; !ok {
-			m[o.Name] = o
-		}
-	}
-	l2 := m.ToList()
-	sort.Sort(ByName(l2))
-	return l2
-}
-
-func convertNamedObjects(rows *sql.Rows) (NamedObjectList, error) {
-	var objects NamedObjectList
-	for rows.Next() {
-		var name null.String
-		obj := &NamedObject{}
-		if err := rows.Scan(&obj.Id, &name); err != nil {
-			return nil, err
-		}
-		obj.Name = name.String
-		objects = append(objects, obj)
-	}
-	return objects, nil
-}
-
-// ----------------------------------------------------------------------
-// Catalog
-// ----------------------------------------------------------------------
-
+// Catalog represents a Lightroom catalog and all the information
+// extracted from it.
 type Catalog struct {
 	db      *sql.DB
 	Paths   []string        `json:"paths"`
@@ -86,6 +23,19 @@ type Catalog struct {
 	Photos  []*PhotoRecord  `json:"photos"`
 }
 
+// NewCatalog allocates and initializes a new Catalog instance without
+// a database connection, for merging other loaded catalogs into.
+func NewCatalog() *Catalog {
+	return &Catalog{
+		Stats:   newStats(),
+		Lenses:  NamedObjectList{},
+		Cameras: NamedObjectList{},
+	}
+}
+
+// OpenCatalog initializes a new Catalog struct and opens a connection
+// to the database file, but does not load any data. OpenCatalog will
+// fail if the catalog is currently open in Lightroom.
 func OpenCatalog(path string) (*Catalog, error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -102,14 +52,14 @@ func OpenCatalog(path string) (*Catalog, error) {
 	}, nil
 }
 
-func NewCatalog() *Catalog {
-	return &Catalog{
-		Stats:   newStats(),
-		Lenses:  NamedObjectList{},
-		Cameras: NamedObjectList{},
-	}
+// Close closes the underlying database file.
+func (c *Catalog) Close() error {
+	return c.db.Close()
 }
 
+// Load retrieves everything luminosity knows about the lightroom
+// catalog - lenses, cameras, statistics, and summary metadata for
+// every photo.
 func (c *Catalog) Load() error {
 	lenses, err := c.GetLenses()
 	if err != nil {
@@ -138,25 +88,38 @@ func (c *Catalog) Load() error {
 	return nil
 }
 
+// Merge takes the loaded contents of another catalog and merges them
+// into the target. Named objects are kept unique according to their
+// names.
 func (c *Catalog) Merge(other *Catalog) {
 	if other == nil {
 		return
 	}
-	c.Paths = append(c.Paths, other.Paths...)
-	c.Stats.Merge(other.Stats)
-	c.Cameras = c.Cameras.Merge(other.Cameras)
-	c.Lenses = c.Lenses.Merge(other.Lenses)
-	c.Photos = append(c.Photos, other.Photos...)
+	if other.Paths != nil {
+		c.Paths = append(c.Paths, other.Paths...)
+	}
+	if other.Stats != nil {
+		c.Stats.Merge(other.Stats)
+	}
+	if other.Cameras != nil {
+		c.Cameras = c.Cameras.Merge(other.Cameras)
+	}
+	if other.Lenses != nil {
+		c.Lenses = c.Lenses.Merge(other.Lenses)
+	}
+	if other.Photos != nil {
+		c.Photos = append(c.Photos, other.Photos...)
+	}
 }
 
-func (c *Catalog) Close() error {
-	return c.db.Close()
-}
-
+// GetLenses returns a list of every lens name extracted from EXIF
+// metadata by Lightroom.
 func (c *Catalog) GetLenses() (NamedObjectList, error) {
 	return c.queryNamedObjects("select id_local, value from AgInternedExifLens")
 }
 
+// GetCameras returns a list of every camera name extracted from EXIF
+// metadata by Lightroom.
 func (c *Catalog) GetCameras() (NamedObjectList, error) {
 	return c.queryNamedObjects("select id_local, value from AgInternedExifCameraModel")
 }
@@ -215,6 +178,9 @@ LEFT JOIN AgInternedExifCameraModel Camera     ON     Camera.id_local =     exif
 	kPhotoRecordListOrderBy = "ORDER BY FullName"
 )
 
+// PhotoRecord gathers the most commonly used information about each
+// photo into a single record, extracted from 8 different tables in
+// the Lightroom catalog.
 type PhotoRecord struct {
 	Id       string      `json:"id"`
 	FullName string      `json:"full_name"`
@@ -309,6 +275,9 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 	return nil
 }
 
+// ForEachPhoto takes a handler function and calls it successively on
+// a PhotoRecord structure for every photo in the catalog. Returning
+// an error from the handler function will stop the iteration.
 func (c *Catalog) ForEachPhoto(handler func(*PhotoRecord) error) error {
 	rows, err := c.db.Query(kPhotoRecordSelect + kPhotoRecordFrom + kPhotoRecordListOrderBy)
 	if err != nil {
@@ -326,6 +295,8 @@ func (c *Catalog) ForEachPhoto(handler func(*PhotoRecord) error) error {
 	return nil
 }
 
+// GetPhotoCount returns a simple count of the total number of images
+// stored in the catalog.
 func (c *Catalog) GetPhotoCount() (int64, error) {
 	row := c.db.QueryRow("select count(*) " + kPhotoRecordFrom)
 	var count int64 = -1
@@ -333,6 +304,8 @@ func (c *Catalog) GetPhotoCount() (int64, error) {
 	return count, err
 }
 
+// GetPhotos returns an array of PhotoRecord structs for every photo
+// represented in the catalog.
 func (c *Catalog) GetPhotos() ([]*PhotoRecord, error) {
 	count, err := c.GetPhotoCount()
 	if err != nil {
@@ -346,10 +319,12 @@ func (c *Catalog) GetPhotos() ([]*PhotoRecord, error) {
 	return photos, err
 }
 
+// Not implemented yet
 func (c *Catalog) GetPhotoByFilename(fn string) (*PhotoRecord, error) {
 	return nil, nil
 }
 
+// Not implemented yet
 func (c *Catalog) GetPhotoByID(id int64) (*PhotoRecord, error) {
 	return nil, nil
 }
