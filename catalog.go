@@ -360,8 +360,10 @@ and         image.fileFormat        = 'RAW'
 )
 
 type SidecarFileStats struct {
-	Count          uint
-	TotalSizeBytes int64
+	Count                uint
+	MissingSidecarCount  uint
+	MissingOriginalCount uint
+	TotalSizeBytes       int64
 }
 
 type SidecarFileRecord struct {
@@ -382,20 +384,38 @@ func (c *Catalog) GetSidecarCount() (int, error) {
 }
 
 func (c *Catalog) GetSidecarFileStats() (*SidecarFileStats, error) {
-	var count uint
+	var count, missingSidecars, missingOriginals uint
 	var size int64
 
 	err := c.ForEachSidecar(func(record *SidecarFileRecord) error {
-		if file, err := os.Open(record.SidecarPath); err == nil {
+		if file, err := os.Open(record.OriginalPath); err != nil {
+			if os.IsNotExist(err) {
+				missingOriginals++
+			}
+		} else {
+			file.Close()
+		}
+
+		if file, err := os.Open(record.SidecarPath); err != nil {
+			if os.IsNotExist(err) {
+				missingSidecars++
+			}
+		} else {
 			if info, err := file.Stat(); err == nil {
 				size += info.Size()
 				count++
 			}
+			file.Close()
 		}
 		return nil
 	})
 
-	return &SidecarFileStats{Count: count, TotalSizeBytes: size}, err
+	return &SidecarFileStats{
+		Count:                count,
+		MissingSidecarCount:  missingSidecars,
+		MissingOriginalCount: missingOriginals,
+		TotalSizeBytes:       size,
+	}, err
 }
 
 func (c *Catalog) ForEachSidecar(handler func(*SidecarFileRecord) error) error {
