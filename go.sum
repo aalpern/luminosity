@@ -1,3 +1,5 @@
+github.com/cloudfoundry/bytefmt v0.0.0-20180906201452-2aa6f33b730c h1:zE9z4EZZwJTjOi9Q9WYM/81BuwOKyjhHagiNUDhDdnI=
+github.com/cloudfoundry/bytefmt v0.0.0-20180906201452-2aa6f33b730c/go.mod h1:4oo6ExqTPaBVBwSm814h6UO5Fels1kN2KvpNscaCcS0=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/jawher/mow.cli v1.1.0 h1:NdtHXRc0CwZQ507wMvQ/IS+Q3W3x2fycn973/b8Zuk8=
