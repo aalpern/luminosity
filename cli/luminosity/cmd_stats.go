@@ -2,14 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/aalpern/luminosity"
 	"github.com/jawher/mow.cli"
+	log "github.com/sirupsen/logrus"
 )
 
 func CmdStats(app *cli.Cli) {
@@ -24,14 +23,20 @@ func CmdStats(app *cli.Cli) {
 			for _, path := range *catalogs {
 				c, err := luminosity.OpenCatalog(path)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error opening catalog %s; %s. Catalog will be ignored.\n",
-						path, err)
+					log.WithFields(log.Fields{
+						"action":  "catalog_open",
+						"catalog": path,
+						"error":   err,
+					}).Warn("Error opening catalog, skipping")
 					continue
 				}
 				err = c.Load()
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error loading catalog %s; %s. Catalog will be ignored.\n",
-						path, err)
+					log.WithFields(log.Fields{
+						"action":  "catalog_load",
+						"catalog": path,
+						"error":   err,
+					}).Warn("Error loading catalog, skipping")
 					continue
 				}
 
