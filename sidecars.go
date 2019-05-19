@@ -44,8 +44,13 @@ type SidecarFileRecord struct {
 	FileName         string
 	Extension        string
 	SidecarExtension string
-	SidecarPath      string
-	OriginalPath     string
+	// Absolute path to the sidecar file. Reconstructed from RootPath
+	// + FilePath + FileName + SidecarExtension.
+	SidecarPath string
+	// Absolute path to the original photo file the sidecar is
+	// associated with. Reconstructed from RootPath + FilePath +
+	// FileName + Extension.
+	OriginalPath string
 }
 
 func (c *Catalog) GetSidecarCount() (int, error) {

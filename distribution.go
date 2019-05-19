@@ -277,6 +277,10 @@ func (s *Stats) Merge(other *Stats) {
 }
 
 func (c *Catalog) GetStats() (*Stats, error) {
+	if c.stats != nil {
+		return c.stats, nil
+	}
+
 	s := &Stats{}
 
 	if d, err := c.GetPhotoCountsByDate(); err != nil {
@@ -314,6 +318,8 @@ func (c *Catalog) GetStats() (*Stats, error) {
 	} else {
 		s.ByExposureTime = d
 	}
+
+	c.stats = s
 
 	return s, nil
 }

@@ -153,18 +153,14 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 // a PhotoRecord structure for every photo in the catalog. Returning
 // an error from the handler function will stop the iteration.
 func (c *Catalog) ForEachPhoto(handler func(*PhotoRecord) error) error {
-	rows, err := c.db.Query(kPhotoRecordSelect + kPhotoRecordFrom + kPhotoRecordListOrderBy)
-	if err != nil {
+	if photos, err := c.GetPhotos(); err != nil {
 		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		p := &PhotoRecord{}
-		err = p.scan(rows)
-		if err != nil {
-			return err
+	} else {
+		for _, photo := range photos {
+			if err = handler(photo); err != nil {
+				return err
+			}
 		}
-		handler(p)
 	}
 	return nil
 }
@@ -181,16 +177,31 @@ func (c *Catalog) GetPhotoCount() (int64, error) {
 // GetPhotos returns an array of PhotoRecord structs for every photo
 // represented in the catalog.
 func (c *Catalog) GetPhotos() ([]*PhotoRecord, error) {
+	if c.photos != nil {
+		return c.photos, nil
+	}
 	count, err := c.GetPhotoCount()
 	if err != nil {
 		return nil, err
 	}
+	rows, err := c.db.Query(kPhotoRecordSelect +
+		kPhotoRecordFrom +
+		kPhotoRecordListOrderBy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
 	photos := make([]*PhotoRecord, 0, count)
-	err = c.ForEachPhoto(func(p *PhotoRecord) error {
+	for rows.Next() {
+		p := &PhotoRecord{}
+		err = p.scan(rows)
+		if err != nil {
+			return photos, err
+		}
 		photos = append(photos, p)
-		return nil
-	})
-	return photos, err
+	}
+	return photos, nil
 }
 
 // Not implemented yet
