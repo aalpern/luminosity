@@ -8,7 +8,8 @@ import (
 const (
 	sidecarColumns = `
 select
-      root.absolutePath
+      image.id_local as id
+    , root.absolutePath
     , folder.pathFromRoot
     , file.baseName
     , file.extension
@@ -39,6 +40,7 @@ type SidecarFileStats struct {
 }
 
 type SidecarFileRecord struct {
+	PhotoId          string
 	RootPath         string
 	FilePath         string
 	FileName         string
