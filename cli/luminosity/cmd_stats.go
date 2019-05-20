@@ -52,6 +52,10 @@ func CmdStats(app *cli.Cli) {
 }
 
 func write(path string, data interface{}) {
+	log.WithFields(log.Fields{
+		"action": "write",
+		"file":   path,
+	}).Debug("Writing JSON")
 	js, _ := json.MarshalIndent(data, "", "  ")
 	ioutil.WriteFile(path, js, 0644)
 }

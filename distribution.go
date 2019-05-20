@@ -281,7 +281,7 @@ func (c *Catalog) GetStats() (*Stats, error) {
 		return c.stats, nil
 	}
 
-	s := &Stats{}
+	s := newStats()
 
 	if d, err := c.GetPhotoCountsByDate(); err != nil {
 		return nil, err

@@ -3,8 +3,10 @@ package luminosity
 
 import (
 	"database/sql"
+	"encoding/json"
 
 	_ "github.com/mattn/go-sqlite3"
+	log "github.com/sirupsen/logrus"
 )
 
 // Catalog represents a Lightroom catalog and all the information
@@ -16,20 +18,28 @@ type Catalog struct {
 	// be more than one value in Paths if multiple catalog objects
 	// have been merged together for aggregate stats via the Merge()
 	// function.
-	paths   []string        `json:"paths"`
-	lenses  NamedObjectList `json:"lenses"`
-	cameras NamedObjectList `json:"cameras"`
-	stats   *Stats          `json:"stats"`
-	photos  []*PhotoRecord  `json:"photos"`
+	paths   []string
+	lenses  NamedObjectList
+	cameras NamedObjectList
+	stats   *Stats
+	photos  []*PhotoRecord
+}
+
+func (c *Catalog) MarshalJSON() ([]byte, error) {
+	m := map[string]interface{}{
+		"paths":   c.paths,
+		"lenses":  c.lenses,
+		"cameras": c.cameras,
+		"photos":  c.photos,
+	}
+	return json.Marshal(m)
 }
 
 // NewCatalog allocates and initializes a new Catalog instance without
 // a database connection, for merging other loaded catalogs into.
 func NewCatalog() *Catalog {
 	return &Catalog{
-		stats:   newStats(),
-		lenses:  NamedObjectList{},
-		cameras: NamedObjectList{},
+		stats: newStats(),
 	}
 }
 
@@ -41,14 +51,17 @@ func OpenCatalog(path string) (*Catalog, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.WithFields(log.Fields{
+		"action": "catalog_open",
+		"path":   path,
+		"status": "ok",
+	}).Debug()
 	return &Catalog{
 		db: db,
 		paths: []string{
 			path,
 		},
-		stats:   newStats(),
-		lenses:  NamedObjectList{},
-		cameras: NamedObjectList{},
+		stats: newStats(),
 	}, nil
 }
 
@@ -90,6 +103,9 @@ func (c *Catalog) Merge(other *Catalog) {
 		c.paths = append(c.paths, other.paths...)
 	}
 	if other.stats != nil {
+		if c.stats == nil {
+			c.stats = newStats()
+		}
 		c.stats.Merge(other.stats)
 	}
 	if other.cameras != nil {
@@ -129,13 +145,4 @@ func (c *Catalog) GetCameras() (NamedObjectList, error) {
 	}
 	c.cameras = cameras
 	return cameras, nil
-}
-
-func (c *Catalog) queryNamedObjects(sql string) (NamedObjectList, error) {
-	rows, err := c.db.Query(sql)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return convertNamedObjects(rows)
 }

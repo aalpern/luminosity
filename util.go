@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"sort"
 
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/guregu/null.v3"
 )
 
@@ -50,6 +51,19 @@ func (l NamedObjectList) Merge(other NamedObjectList) NamedObjectList {
 	return l2
 }
 
+func (c *Catalog) queryNamedObjects(sql string) (NamedObjectList, error) {
+	log.WithFields(log.Fields{
+		"action": "query_named_objects",
+		"query":  sql,
+	}).Debug("Executing query")
+	rows, err := c.db.Query(sql)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return convertNamedObjects(rows)
+}
+
 func convertNamedObjects(rows *sql.Rows) (NamedObjectList, error) {
 	var objects NamedObjectList
 	for rows.Next() {
@@ -61,5 +75,9 @@ func convertNamedObjects(rows *sql.Rows) (NamedObjectList, error) {
 		obj.Name = name.String
 		objects = append(objects, obj)
 	}
+	log.WithFields(log.Fields{
+		"action": "convert_named_objects",
+		"count":  len(objects),
+	}).Debug()
 	return objects, nil
 }
