@@ -206,13 +206,3 @@ func (c *Catalog) GetPhotos() ([]*PhotoRecord, error) {
 	}
 	return photos, nil
 }
-
-// Not implemented yet
-func (c *Catalog) GetPhotoByFilename(fn string) (*PhotoRecord, error) {
-	return nil, nil
-}
-
-// Not implemented yet
-func (c *Catalog) GetPhotoByID(id int64) (*PhotoRecord, error) {
-	return nil, nil
-}
