@@ -35,17 +35,19 @@ SELECT    image.id_local as id,
           exif.gpsLatitude,
           exif.gpsLongitude,
           iptc.caption,
-          iptc.copyright
+          iptc.copyright,
+          coalesce(Creator.value, 'Unknown') as creator,
 `
 	kPhotoRecordFrom = `
 FROM      Adobe_images              image
-JOIN      AgLibraryFile             rootFile   ON   rootfile.id_local =    image.rootFile
+JOIN      AgLibraryFile             rootFile   ON   rootfile.id_local = image.rootFile
 JOIN      AgLibraryFolder           folder     ON     folder.id_local = rootfile.folder
-JOIN      AgLibraryRootFolder       rootFolder ON rootFolder.id_local =   folder.rootFolder
-LEFT JOIN AgLibraryIPTC             iptc       ON      image.id_local =     iptc.image
-LEFT JOIN AgharvestedExifMetadata   exif       ON      image.id_local =     exif.image
-LEFT JOIN AgInternedExifLens        Lens       ON       Lens.id_Local =     exif.lensRef
-LEFT JOIN AgInternedExifCameraModel Camera     ON     Camera.id_local =     exif.cameraModelRef
+JOIN      AgLibraryRootFolder       rootFolder ON rootFolder.id_local = folder.rootFolder
+LEFT JOIN AgLibraryIPTC             iptc       ON      image.id_local = iptc.image
+LEFT JOIN AgharvestedExifMetadata   exif       ON      image.id_local = exif.image
+LEFT JOIN AgInternedExifLens        Lens       ON       Lens.id_Local = exif.lensRef
+LEFT JOIN AgInternedExifCameraModel Camera     ON     Camera.id_local = exif.cameraModelRef
+LEFT JOIN AgInternedIptcCreator     Creator    ON    Creator.id_local = iptc.image
 `
 	kPhotoRecordListOrderBy = "ORDER BY FullName"
 )
@@ -87,6 +89,7 @@ type PhotoRecord struct {
 	// Iptc
 	Caption   null.String `json:"caption"`
 	Copyright null.String `json:"copyright"`
+	Creator   null.String `json:"creator"`
 }
 
 func parseTime(s string) (time.Time, error) {
