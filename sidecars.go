@@ -32,11 +32,22 @@ and         image.fileFormat        = 'RAW'
 `
 )
 
+// SidecarFileStats records summary information about the sidecars of
+// a catalog, including total count, total size on disk, and how many
+// sidecars or original photos are missing.
 type SidecarFileStats struct {
-	Count                uint
-	MissingSidecarCount  uint
+	// Count indicates the total number of sidecar files in a catalog.
+	Count uint
+	// MissingSidecarCount indicates the total number of sidecar files
+	// which are missing on disk.
+	MissingSidecarCount uint
+	// MissingOriginalCount indicates the total number of files for
+	// which a sidecar record exists, but the original file is missing
+	// on disk.
 	MissingOriginalCount uint
-	TotalSizeBytes       int64
+	// TotalSizeBytes indicates the total size in bytes of the sidecar
+	// files on disk.
+	TotalSizeBytes int64
 }
 
 type SidecarFileRecord struct {
