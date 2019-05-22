@@ -36,7 +36,7 @@ SELECT    image.id_local as id,
           exif.gpsLongitude,
           iptc.caption,
           iptc.copyright,
-          coalesce(Creator.value, 'Unknown') as creator,
+          coalesce(Creator.value, 'Unknown') as creator
 `
 	kPhotoRecordFrom = `
 FROM      Adobe_images              image
@@ -119,7 +119,7 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 		&p.DateDay, &p.DateMonth, &p.DateYear, &p.FlashFired, &p.ISO, &shutterSpeedString, &p.FocalLength, &apertureString,
 		&p.HasGPS, &p.Latitude, &p.Longitude,
 		// Iptc
-		&p.Caption, &p.Copyright,
+		&p.Caption, &p.Copyright, &p.Creator,
 	)
 	if err != nil {
 		return err
@@ -187,9 +187,10 @@ func (c *Catalog) GetPhotos() ([]*PhotoRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := c.db.Query(kPhotoRecordSelect +
-		kPhotoRecordFrom +
-		kPhotoRecordListOrderBy)
+	rows, err := c.query("get_photos",
+		kPhotoRecordSelect+
+			kPhotoRecordFrom+
+			kPhotoRecordListOrderBy)
 	if err != nil {
 		return nil, err
 	}

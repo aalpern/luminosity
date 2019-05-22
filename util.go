@@ -51,12 +51,24 @@ func (l NamedObjectList) Merge(other NamedObjectList) NamedObjectList {
 	return l2
 }
 
-func (c *Catalog) queryNamedObjects(sql string) (NamedObjectList, error) {
-	log.WithFields(log.Fields{
-		"action": "query_named_objects",
-		"query":  sql,
-	}).Debug("Executing query")
+func (c *Catalog) query(label, sql string) (*sql.Rows, error) {
+	fields := log.Fields{
+		"action": "query",
+		"status": "ok",
+		"label":  label,
+		"sql":    sql,
+	}
 	rows, err := c.db.Query(sql)
+	if err != nil {
+		fields["status"] = "error"
+		fields["error"] = err
+	}
+	log.WithFields(fields).Debug("Executed query")
+	return rows, err
+}
+
+func (c *Catalog) queryNamedObjects(sql string) (NamedObjectList, error) {
+	rows, err := c.query("query_named_objects", sql)
 	if err != nil {
 		return nil, err
 	}

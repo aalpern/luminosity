@@ -31,6 +31,7 @@ func (c *Catalog) MarshalJSON() ([]byte, error) {
 		"lenses":  c.lenses,
 		"cameras": c.cameras,
 		"photos":  c.photos,
+		"stats":   c.stats,
 	}
 	return json.Marshal(m)
 }
@@ -38,9 +39,7 @@ func (c *Catalog) MarshalJSON() ([]byte, error) {
 // NewCatalog allocates and initializes a new Catalog instance without
 // a database connection, for merging other loaded catalogs into.
 func NewCatalog() *Catalog {
-	return &Catalog{
-		stats: newStats(),
-	}
+	return &Catalog{}
 }
 
 // OpenCatalog initializes a new Catalog struct and opens a connection
@@ -61,7 +60,6 @@ func OpenCatalog(path string) (*Catalog, error) {
 		paths: []string{
 			path,
 		},
-		stats: newStats(),
 	}, nil
 }
 
@@ -103,10 +101,8 @@ func (c *Catalog) Merge(other *Catalog) {
 		c.paths = append(c.paths, other.paths...)
 	}
 	if other.stats != nil {
-		if c.stats == nil {
-			c.stats = newStats()
-		}
-		c.stats.Merge(other.stats)
+		stats, _ := c.GetStats()
+		stats.Merge(other.stats)
 	}
 	if other.cameras != nil {
 		c.cameras = c.cameras.Merge(other.cameras)
@@ -144,5 +140,5 @@ func (c *Catalog) GetCameras() (NamedObjectList, error) {
 		return nil, err
 	}
 	c.cameras = cameras
-	return cameras, nil
+	return c.cameras, nil
 }

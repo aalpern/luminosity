@@ -71,6 +71,42 @@ func (a DistributionList) Len() int           { return len(a) }
 func (a DistributionList) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a DistributionList) Less(i, j int) bool { return a[i].Label < a[j].Label }
 
+type distributionConvertor func(*sql.Rows) (*DistributionEntry, error)
+
+func defaultDistributionConvertor(rows *sql.Rows) (*DistributionEntry, error) {
+	var label null.String
+	var id, count int64
+	if err := rows.Scan(&id, &label, &count); err != nil {
+		return nil, err
+	}
+	return &DistributionEntry{
+		Id:    id,
+		Label: label.String,
+		Count: count,
+	}, nil
+}
+
+func (c *Catalog) queryDistribution(sql string, fn distributionConvertor) (DistributionList, error) {
+	rows, err := c.query("query_distribution", sql)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return convertDistribution(rows, fn)
+}
+
+func convertDistribution(rows *sql.Rows, fn distributionConvertor) (DistributionList, error) {
+	var entries DistributionList
+	for rows.Next() {
+		if entry, err := fn(rows); err != nil {
+			return nil, err
+		} else {
+			entries = append(entries, entry)
+		}
+	}
+	return entries, nil
+}
+
 // ----------------------------------------------------------------------
 // Distribution Queries
 // ----------------------------------------------------------------------
@@ -185,40 +221,35 @@ ORDER BY shutterSpeed
 	})
 }
 
-type distributionConvertor func(*sql.Rows) (*DistributionEntry, error)
-
-func defaultDistributionConvertor(rows *sql.Rows) (*DistributionEntry, error) {
-	var label null.String
-	var id, count int64
-	if err := rows.Scan(&id, &label, &count); err != nil {
-		return nil, err
-	}
-	return &DistributionEntry{
-		Id:    id,
-		Label: label.String,
-		Count: count,
-	}, nil
+func (c *Catalog) GetEditCountDistribution() (DistributionList, error) {
+	const query = `
+SELECT edit_count as id, 
+       edit_count as label, 
+       count(*) as count 
+FROM   (
+  SELECT   count(*) as edit_count, 
+           image  
+  FROM     Adobe_libraryImageDevelopHistoryStep
+  GROUP BY image
+  ORDER BY edit_count DESC
+)
+WHERE    edit_count > 1
+GROUP BY edit_count
+`
+	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
-func (c *Catalog) queryDistribution(sql string, fn distributionConvertor) (DistributionList, error) {
-	rows, err := c.db.Query(sql)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return convertDistribution(rows, fn)
-}
-
-func convertDistribution(rows *sql.Rows, fn distributionConvertor) (DistributionList, error) {
-	var entries DistributionList
-	for rows.Next() {
-		if entry, err := fn(rows); err != nil {
-			return nil, err
-		} else {
-			entries = append(entries, entry)
-		}
-	}
-	return entries, nil
+func (c *Catalog) GetKeywordDistribution() (DistributionList, error) {
+	const query = `
+SELECT 	    k.id_local    as id, 
+		    k.name        as label,
+		    p.occurrences as count
+FROM 		AgLibraryKeywordPopularity p
+INNER JOIN 	AgLibraryKeyword           k 
+ON 			p.tag = k.id_local
+ORDER BY 	p.occurrences desc
+`
+	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
 // ----------------------------------------------------------------------
@@ -252,6 +283,8 @@ type Stats struct {
 	ByFocalLength  DistributionList `json:"by_focal_length"`
 	ByAperture     DistributionList `json:"by_aperture"`
 	ByExposureTime DistributionList `json:"by_exposure_time"`
+	ByEditCount    DistributionList `json:"by_edit_count"`
+	ByKeyword      DistributionList `json:"by_keyword"`
 }
 
 func newStats() *Stats {
@@ -262,6 +295,8 @@ func newStats() *Stats {
 		ByFocalLength:  DistributionList{},
 		ByAperture:     DistributionList{},
 		ByExposureTime: DistributionList{},
+		ByEditCount:    DistributionList{},
+		ByKeyword:      DistributionList{},
 	}
 }
 
@@ -272,6 +307,8 @@ func (s *Stats) Merge(other *Stats) {
 	s.ByFocalLength = s.ByFocalLength.Merge(other.ByFocalLength)
 	s.ByAperture = s.ByAperture.Merge(other.ByAperture)
 	s.ByExposureTime = s.ByExposureTime.Merge(other.ByExposureTime)
+	s.ByEditCount = s.ByEditCount.Merge(other.ByEditCount)
+	s.ByKeyword = s.ByKeyword.Merge(other.ByKeyword)
 
 	sort.Sort(ByDate(s.ByDate))
 }
@@ -282,6 +319,11 @@ func (c *Catalog) GetStats() (*Stats, error) {
 	}
 
 	s := newStats()
+
+	if c.db == nil {
+		c.stats = s
+		return s, nil
+	}
 
 	if d, err := c.GetPhotoCountsByDate(); err != nil {
 		return nil, err
@@ -319,7 +361,18 @@ func (c *Catalog) GetStats() (*Stats, error) {
 		s.ByExposureTime = d
 	}
 
-	c.stats = s
+	if d, err := c.GetEditCountDistribution(); err != nil {
+		return nil, err
+	} else {
+		s.ByEditCount = d
+	}
 
-	return s, nil
+	if d, err := c.GetKeywordDistribution(); err != nil {
+		return nil, err
+	} else {
+		s.ByKeyword = d
+	}
+
+	c.stats = s
+	return c.stats, nil
 }

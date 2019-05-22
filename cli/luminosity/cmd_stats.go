@@ -25,6 +25,7 @@ func CmdStats(app *cli.Cli) {
 
 		cmd.Action = func() {
 			merged := luminosity.NewCatalog()
+
 			for _, path := range *catalogs {
 				c, err := luminosity.OpenCatalog(path)
 				if err != nil {

@@ -109,7 +109,7 @@ func (c *Catalog) GetSidecarFileStats() (*SidecarFileStats, error) {
 }
 
 func (c *Catalog) ForEachSidecar(handler func(*SidecarFileRecord) error) error {
-	rows, err := c.db.Query(sidecarColumns + sidecarFrom)
+	rows, err := c.query("for_each_sidecar", sidecarColumns+sidecarFrom)
 	if err != nil {
 		return err
 	}
