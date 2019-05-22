@@ -14,9 +14,14 @@ import (
 func CmdStats(app *cli.Cli) {
 	app.Command("stats", "Generate catalog statistics", func(cmd *cli.Cmd) {
 
-		cmd.Spec = "[--outfile] CATALOG..."
-		outfile := cmd.StringOpt("o outfile", "stats.json", "Path to output file")
-		catalogs := cmd.StringsArg("CATALOG", nil, "Catalogs to process")
+		cmd.Spec = "[--outfile] [--per-catalog] CATALOG..."
+
+		outfile := cmd.StringOpt("o outfile", "stats.json",
+			"Path to output file")
+		perCatalog := cmd.BoolOpt("p per-catalog", false,
+			"Output a summary .json file for each catalog, in addition to the merged output")
+		catalogs := cmd.StringsArg("CATALOG", nil,
+			"Catalogs to process")
 
 		cmd.Action = func() {
 			merged := luminosity.NewCatalog()
@@ -40,8 +45,10 @@ func CmdStats(app *cli.Cli) {
 					continue
 				}
 
-				jsPath := strings.Replace(filepath.Base(path), ".lrcat", ".json", 1)
-				write(jsPath, c)
+				if *perCatalog {
+					jsPath := strings.Replace(filepath.Base(path), ".lrcat", ".json", 1)
+					write(jsPath, c)
+				}
 
 				merged.Merge(c)
 			}
