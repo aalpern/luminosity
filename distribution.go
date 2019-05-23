@@ -252,25 +252,24 @@ ORDER BY 	p.occurrences desc
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
-// ----------------------------------------------------------------------
-// Starburst Stats
-// ----------------------------------------------------------------------
-
-const query = `
-SELECT    count(*)          as count,
-          image.id_local    as id,
-          Camera.Value      as Camera,
-          Lens.value        as Lens,
-          exif.aperture     as Aperture,
-          exif.focalLength  as FocalLength
+func (c *Catalog) GetSunburstStats() ([]map[string]string, error) {
+	const query = `
+SELECT    count(*)                as count,
+          image.id_local          as id,
+          Camera.Value            as camera,
+          Lens.value              as lens,
+          round(exif.aperture, 1) as aperture,
+          exif.focalLength        as focal_length
 FROM      Adobe_images              image
 JOIN      AgharvestedExifMetadata   exif      ON  image.id_local  = exif.image
 LEFT JOIN AgInternedExifLens        Lens      ON  Lens.id_Local   = exif.lensRef
 LEFT JOIN AgInternedExifCameraModel Camera    ON  Camera.id_local = exif.cameraModelRef
 WHERE camera is not null and lens is not null
-GROUP BY Camera, Lens, Aperture, FocalLength
-ORDER BY Camera, Lens, Aperture, FocalLength, count
+GROUP BY camera, lens, aperture, focal_length
+ORDER BY camera, lens, aperture, focal_length, count
 `
+	return c.queryStringMap("sunburst_stats", query)
+}
 
 // ----------------------------------------------------------------------
 // Composite Stats Object

@@ -67,6 +67,36 @@ func (c *Catalog) query(label, sql string) (*sql.Rows, error) {
 	return rows, err
 }
 
+func (c *Catalog) queryStringMap(label, sql string) ([]map[string]string, error) {
+	var results []map[string]string
+	if rows, err := c.query(label, sql); err != nil {
+		return results, err
+	} else {
+		for rows.Next() {
+			columns, err := rows.Columns()
+			if err != nil {
+				return results, err
+			}
+
+			values := make([]string, len(columns))
+			valueptrs := make([]interface{}, len(columns))
+			for i, _ := range values {
+				valueptrs[i] = &(values[i])
+			}
+			if err := rows.Scan(valueptrs...); err != nil {
+				return results, err
+			}
+
+			m := map[string]string{}
+			for i, col := range columns {
+				m[col] = values[i]
+			}
+			results = append(results, m)
+		}
+	}
+	return results, nil
+}
+
 func (c *Catalog) queryNamedObjects(sql string) (NamedObjectList, error) {
 	rows, err := c.query("query_named_objects", sql)
 	if err != nil {
