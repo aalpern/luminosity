@@ -78,10 +78,11 @@ func (c *Catalog) queryStringMap(label, sql string) ([]map[string]string, error)
 				return results, err
 			}
 
-			values := make([]string, len(columns))
-			valueptrs := make([]interface{}, len(columns))
+			colcount := len(columns)
+			values := make([]null.String, colcount, colcount)
+			valueptrs := make([]interface{}, colcount, colcount)
 			for i, _ := range values {
-				valueptrs[i] = &(values[i])
+				valueptrs[i] = &values[i]
 			}
 			if err := rows.Scan(valueptrs...); err != nil {
 				return results, err
@@ -89,7 +90,7 @@ func (c *Catalog) queryStringMap(label, sql string) ([]map[string]string, error)
 
 			m := map[string]string{}
 			for i, col := range columns {
-				m[col] = values[i]
+				m[col] = values[i].ValueOrZero()
 			}
 			results = append(results, m)
 		}

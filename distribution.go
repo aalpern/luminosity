@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"gopkg.in/guregu/null.v3"
 )
@@ -254,21 +255,47 @@ ORDER BY 	p.occurrences desc
 
 func (c *Catalog) GetSunburstStats() ([]map[string]string, error) {
 	const query = `
-SELECT    count(*)                as count,
-          image.id_local          as id,
-          Camera.Value            as camera,
-          Lens.value              as lens,
-          round(exif.aperture, 1) as aperture,
-          exif.focalLength        as focal_length
+SELECT    count(*)          as count,
+          image.id_local    as id,
+          Camera.Value      as camera,
+          Lens.value        as lens,
+          exif.aperture     as aperture,
+          exif.focalLength  as focal_length,
+          exif.shutterSpeed as exposure
 FROM      Adobe_images              image
 JOIN      AgharvestedExifMetadata   exif      ON  image.id_local  = exif.image
 LEFT JOIN AgInternedExifLens        Lens      ON  Lens.id_Local   = exif.lensRef
 LEFT JOIN AgInternedExifCameraModel Camera    ON  Camera.id_local = exif.cameraModelRef
 WHERE camera is not null and lens is not null
-GROUP BY camera, lens, aperture, focal_length
-ORDER BY camera, lens, aperture, focal_length, count
+GROUP BY camera, lens, aperture, focal_length, exposure
+ORDER BY camera, lens, aperture, focal_length, exposure, count
 `
-	return c.queryStringMap("sunburst_stats", query)
+	if data, err := c.queryStringMap("sunburst_stats", query); err != nil {
+		return data, err
+	} else {
+		for _, record := range data {
+			// Need to convert the APEX aperture values to f-numbers
+			// and the exposure time to shutter speed
+			if apertureStr, ok := record["aperture"]; ok && apertureStr != "" {
+				aperture, err := strconv.ParseFloat(apertureStr, 64)
+				if err != nil {
+					return data, err
+				}
+				record["aperture"] = fmt.Sprintf("f/%.1f", ApertureToFNumber(aperture))
+			}
+			if exposureStr, ok := record["exposure"]; ok && exposureStr != "" {
+				exposure, err := strconv.ParseFloat(exposureStr, 64)
+				if err != nil {
+					return data, err
+				}
+				record["exposure"] = ShutterSpeedToExposureTime(exposure)
+			}
+			if focalLength, ok := record["focal_length"]; ok && focalLength != "" {
+				record["focal_length"] = focalLength + "mm"
+			}
+		}
+		return data, nil
+	}
 }
 
 // ----------------------------------------------------------------------
