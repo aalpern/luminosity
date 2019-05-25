@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -12,28 +11,21 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	CatalogExtension        = "lrcat"
-	CatalogDataDirExtension = "lrdata"
-)
-
 func CmdStats(app *cli.Cli) {
 	app.Command("stats", "Generate catalog statistics", func(cmd *cli.Cmd) {
 
-		cmd.Spec = "[--outfile] [--per-catalog] [--recursive] PATH..."
+		cmd.Spec = "[--outfile] [--per-catalog] PATH..."
 
 		outfile := cmd.StringOpt("o outfile", "stats.json",
 			"Path to output file")
 		perCatalog := cmd.BoolOpt("p per-catalog", false,
 			"Output a summary .json file for each catalog, in addition to the merged output")
-		recursive := cmd.BoolOpt("R recursive", false,
-			"Recurse into any directories include as PATH arguments")
 		paths := cmd.StringsArg("PATH", nil,
 			"Paths to process, which can be .lrcat files or directories")
 
 		cmd.Action = func() {
 			merged := luminosity.NewCatalog()
-			catalogPaths := findCatalogs(*recursive, (*paths)...)
+			catalogPaths := luminosity.FindCatalogs((*paths)...)
 			var total int
 
 			for _, path := range catalogPaths {
@@ -83,79 +75,6 @@ func CmdStats(app *cli.Cli) {
 			}).Info("Complete")
 		}
 	})
-}
-
-func findCatalogs(recurse bool, paths ...string) []string {
-	found := make([]string, 0, len(paths))
-
-	// For each path in the input
-	for _, path := range paths {
-		info, err := os.Stat(path)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"action": "find_catalogs",
-				"status": "stat_error",
-				"path":   path,
-				"error":  "err",
-			}).Warn("Cannot stat path")
-			continue
-		}
-
-		// Process files
-		if !info.IsDir() {
-			if strings.HasSuffix(path, CatalogExtension) {
-				found = append(found, path)
-			}
-		} else {
-			// Process directories
-			children := findCatalogsInDir(recurse, path)
-			found = append(found, children...)
-		}
-	}
-	return found
-}
-
-func findCatalogsInDir(recurse bool, path string) []string {
-	found := make([]string, 0, 8)
-
-	if recurse {
-		filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
-			if err != nil {
-				log.WithFields(log.Fields{
-					"action": "find_catalogs",
-					"status": "walk_error",
-					"path":   path,
-					"error":  "err",
-				}).Warn("Error walking path")
-			} else if !info.IsDir() {
-				found = append(found, findCatalogs(false, p)...)
-			} else if info.IsDir() {
-				// Skip the .lrdata directories which contain the
-				// potentially huge number of cached image previews
-				if strings.HasSuffix(p, CatalogDataDirExtension) {
-					return filepath.SkipDir
-				}
-			}
-			return nil
-		})
-	} else {
-		if files, err := ioutil.ReadDir(path); err != nil {
-			log.WithFields(log.Fields{
-				"action": "find_catalogs",
-				"status": "readdir_error",
-				"path":   path,
-				"error":  "err",
-			}).Warn("Error reading directory")
-		} else {
-			for _, file := range files {
-				if strings.HasSuffix(file.Name(), CatalogExtension) {
-					found = append(found, filepath.Join(path, file.Name()))
-				}
-			}
-		}
-	}
-
-	return found
 }
 
 func write(path string, data interface{}) {
