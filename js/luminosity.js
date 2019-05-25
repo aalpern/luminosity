@@ -1,3 +1,15 @@
+/**
+ * SunburstData accepts data output by the `luminosity sunburst`
+ * command and a list of fields to hierarchically group the data by
+ * for presentation as a sunburst chart.
+ * 
+ * Current available fields to group by are:
+ *   - camera
+ *   - lens
+ *   - aperture
+ *   - focal_length
+ *   - exposure
+ */
 class SunburstData {
   constructor(label, data, groupby) {
     this.chart = null
