@@ -103,13 +103,7 @@ func findCatalogs(recurse bool, paths ...string) []string {
 
 		// Process files
 		if !info.IsDir() {
-			if !strings.HasSuffix(path, CatalogExtension) {
-				log.WithFields(log.Fields{
-					"action": "find_catalogs",
-					"status": "wrong_suffix",
-					"path":   path,
-				}).Debug("Not a catalog file")
-			} else {
+			if strings.HasSuffix(path, CatalogExtension) {
 				found = append(found, path)
 			}
 		} else {
@@ -144,6 +138,21 @@ func findCatalogsInDir(recurse bool, path string) []string {
 			}
 			return nil
 		})
+	} else {
+		if files, err := ioutil.ReadDir(path); err != nil {
+			log.WithFields(log.Fields{
+				"action": "find_catalogs",
+				"status": "readdir_error",
+				"path":   path,
+				"error":  "err",
+			}).Warn("Error reading directory")
+		} else {
+			for _, file := range files {
+				if strings.HasSuffix(file.Name(), CatalogExtension) {
+					found = append(found, filepath.Join(path, file.Name()))
+				}
+			}
+		}
 	}
 
 	return found
