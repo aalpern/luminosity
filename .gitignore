@@ -4,7 +4,8 @@ _build/
 *.lrcat
 *.lrprev
 *.db
+*.json
 .tscache/
 .baseDir.ts
 node_modules/
-luminosity
+./luminosity
