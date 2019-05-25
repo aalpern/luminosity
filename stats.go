@@ -42,14 +42,14 @@ func (s *Stats) Merge(other *Stats) {
 }
 
 func (c *Catalog) GetStats() (*Stats, error) {
-	if c.stats != nil {
-		return c.stats, nil
+	if c.Stats != nil {
+		return c.Stats, nil
 	}
 
 	s := newStats()
 
 	if c.db == nil {
-		c.stats = s
+		c.Stats = s
 		return s, nil
 	}
 
@@ -101,6 +101,6 @@ func (c *Catalog) GetStats() (*Stats, error) {
 		s.ByKeyword = d
 	}
 
-	c.stats = s
-	return c.stats, nil
+	c.Stats = s
+	return c.Stats, nil
 }

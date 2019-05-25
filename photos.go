@@ -180,8 +180,8 @@ func (c *Catalog) GetPhotoCount() (int64, error) {
 // GetPhotos returns an array of PhotoRecord structs for every photo
 // represented in the catalog.
 func (c *Catalog) GetPhotos() ([]*PhotoRecord, error) {
-	if c.photos != nil {
-		return c.photos, nil
+	if c.Photos != nil {
+		return c.Photos, nil
 	}
 	count, err := c.GetPhotoCount()
 	if err != nil {

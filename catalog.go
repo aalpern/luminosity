@@ -3,37 +3,25 @@ package luminosity
 
 import (
 	"database/sql"
-	"encoding/json"
 
 	_ "github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
 )
 
+type catalog struct {
+	Paths       []string        `json:"paths"`
+	Lenses      NamedObjectList `json:"lenses"`
+	Cameras     NamedObjectList `json:"cameras"`
+	Stats       *Stats          `json:"stats"`
+	Collections []*Collection   `json:"collections"`
+	Photos      []*PhotoRecord  `json:"-"`
+}
+
 // Catalog represents a Lightroom catalog and all the information
 // extracted from it.
 type Catalog struct {
+	catalog
 	db *sql.DB
-
-	// paths is a list of filepaths to .lrcat files. There will only
-	// be more than one value in Paths if multiple catalog objects
-	// have been merged together for aggregate stats via the Merge()
-	// function.
-	paths   []string
-	lenses  NamedObjectList
-	cameras NamedObjectList
-	stats   *Stats
-	photos  []*PhotoRecord
-}
-
-func (c *Catalog) MarshalJSON() ([]byte, error) {
-	m := map[string]interface{}{
-		"paths":   c.paths,
-		"lenses":  c.lenses,
-		"cameras": c.cameras,
-		"photos":  c.photos,
-		"stats":   c.stats,
-	}
-	return json.Marshal(m)
 }
 
 // NewCatalog allocates and initializes a new Catalog instance without
@@ -55,12 +43,13 @@ func OpenCatalog(path string) (*Catalog, error) {
 		"path":   path,
 		"status": "ok",
 	}).Debug()
-	return &Catalog{
+	cat := &Catalog{
 		db: db,
-		paths: []string{
-			path,
-		},
-	}, nil
+	}
+	cat.Paths = []string{
+		path,
+	}
+	return cat, nil
 }
 
 // Close closes the underlying database file.
@@ -87,6 +76,9 @@ func (c *Catalog) Load() error {
 	if _, err := c.GetPhotos(); err != nil {
 		return err
 	}
+	if _, err := c.GetCollections(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -97,48 +89,51 @@ func (c *Catalog) Merge(other *Catalog) {
 	if other == nil {
 		return
 	}
-	if other.paths != nil {
-		c.paths = append(c.paths, other.paths...)
+	if other.Paths != nil {
+		c.Paths = append(c.Paths, other.Paths...)
 	}
-	if other.stats != nil {
+	if other.Stats != nil {
 		stats, _ := c.GetStats()
-		stats.Merge(other.stats)
+		stats.Merge(other.Stats)
 	}
-	if other.cameras != nil {
-		c.cameras = c.cameras.Merge(other.cameras)
+	if other.Cameras != nil {
+		c.Cameras = c.Cameras.Merge(other.Cameras)
 	}
-	if other.lenses != nil {
-		c.lenses = c.lenses.Merge(other.lenses)
+	if other.Lenses != nil {
+		c.Lenses = c.Lenses.Merge(other.Lenses)
 	}
-	if other.photos != nil {
-		c.photos = append(c.photos, other.photos...)
+	if other.Photos != nil {
+		c.Photos = append(c.Photos, other.Photos...)
+	}
+	if other.Collections != nil {
+		c.Collections = append(c.Collections, other.Collections...)
 	}
 }
 
 // GetLenses returns a list of every lens name extracted from EXIF
 // metadata by Lightroom.
 func (c *Catalog) GetLenses() (NamedObjectList, error) {
-	if c.lenses != nil {
-		return c.lenses, nil
+	if c.Lenses != nil {
+		return c.Lenses, nil
 	}
 	lenses, err := c.queryNamedObjects("select id_local, value from AgInternedExifLens")
 	if err != nil {
 		return nil, err
 	}
-	c.lenses = lenses
-	return c.lenses, nil
+	c.Lenses = lenses
+	return c.Lenses, nil
 }
 
 // GetCameras returns a list of every camera name extracted from EXIF
 // metadata by Lightroom.
 func (c *Catalog) GetCameras() (NamedObjectList, error) {
-	if c.cameras != nil {
-		return c.cameras, nil
+	if c.Cameras != nil {
+		return c.Cameras, nil
 	}
 	cameras, err := c.queryNamedObjects("select id_local, value from AgInternedExifCameraModel")
 	if err != nil {
 		return nil, err
 	}
-	c.cameras = cameras
-	return c.cameras, nil
+	c.Cameras = cameras
+	return c.Cameras, nil
 }
