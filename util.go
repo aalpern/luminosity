@@ -135,6 +135,9 @@ const (
 	CatalogDataDirExtension = "lrdata"
 )
 
+// FindCatalogs returns the full pathnames of every Lightroom catalog
+// (.lrcat) file in the list of inputs paths. Any directories in paths
+// will be walked recursively.
 func FindCatalogs(paths ...string) []string {
 	found := make([]string, 0, len(paths))
 

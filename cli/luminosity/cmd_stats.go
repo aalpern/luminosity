@@ -14,12 +14,14 @@ import (
 func CmdStats(app *cli.Cli) {
 	app.Command("stats", "Generate catalog statistics", func(cmd *cli.Cmd) {
 
-		cmd.Spec = "[--outfile] [--per-catalog] PATH..."
+		cmd.Spec = "[--outfile] [--per-catalog] [--pretty-print] PATH..."
 
 		outfile := cmd.StringOpt("o outfile", "stats.json",
 			"Path to output file")
-		perCatalog := cmd.BoolOpt("p per-catalog", false,
+		perCatalog := cmd.BoolOpt("c per-catalog", false,
 			"Output a summary .json file for each catalog, in addition to the merged output")
+		prettyPrint := cmd.BoolOpt("p pretty-print", false,
+			"Format the JSON output indented for human readability")
 		paths := cmd.StringsArg("PATH", nil,
 			"Paths to process, which can be .lrcat files or directories")
 
@@ -52,7 +54,7 @@ func CmdStats(app *cli.Cli) {
 
 				if *perCatalog {
 					jsPath := strings.Replace(filepath.Base(path), ".lrcat", ".json", 1)
-					write(jsPath, c)
+					write(jsPath, c, *prettyPrint)
 				}
 
 				total++
@@ -66,7 +68,7 @@ func CmdStats(app *cli.Cli) {
 				c.Close()
 			}
 
-			write(*outfile, merged)
+			write(*outfile, merged, *prettyPrint)
 
 			log.WithFields(log.Fields{
 				"action":             "status",
@@ -77,11 +79,16 @@ func CmdStats(app *cli.Cli) {
 	})
 }
 
-func write(path string, data interface{}) {
+func write(path string, data interface{}, prettyPrint bool) {
 	log.WithFields(log.Fields{
 		"action": "write",
 		"file":   path,
 	}).Debug("Writing JSON")
-	js, _ := json.MarshalIndent(data, "", "  ")
+	var js []byte
+	if prettyPrint {
+		js, _ = json.MarshalIndent(data, "", "  ")
+	} else {
+		js, _ = json.Marshal(data)
+	}
 	ioutil.WriteFile(path, js, 0644)
 }

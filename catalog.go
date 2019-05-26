@@ -9,12 +9,13 @@ import (
 )
 
 type catalog struct {
-	Paths       []string        `json:"paths"`
-	Lenses      NamedObjectList `json:"lenses"`
-	Cameras     NamedObjectList `json:"cameras"`
-	Stats       *Stats          `json:"stats"`
-	Collections []*Collection   `json:"collections"`
-	Photos      []*PhotoRecord  `json:"-"`
+	Paths          []string        `json:"paths"`
+	Lenses         NamedObjectList `json:"lenses"`
+	Cameras        NamedObjectList `json:"cameras"`
+	Stats          *Stats          `json:"stats"`
+	Collections    []*Collection   `json:"collections"`
+	CollectionTree *Collection     `json:"collection_tree"`
+	Photos         []*PhotoRecord  `json:"-"`
 }
 
 // Catalog represents a Lightroom catalog and all the information
@@ -79,6 +80,9 @@ func (c *Catalog) Load() error {
 	if _, err := c.GetCollections(); err != nil {
 		return err
 	}
+	if _, err := c.GetCollectionTree(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -107,6 +111,9 @@ func (c *Catalog) Merge(other *Catalog) {
 	}
 	if other.Collections != nil {
 		c.Collections = append(c.Collections, other.Collections...)
+	}
+	if other.CollectionTree != nil && c.CollectionTree == nil {
+		c.CollectionTree = other.CollectionTree
 	}
 }
 
