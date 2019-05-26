@@ -13,10 +13,10 @@ Documentation is available on
 This library began as a very simple script to purge sidecar files from
 disk. The bulk of my photography is travel photography, and for my
 current setup I usually don't bring a laptop - I travel with an iPad
-and a
-[https://www.wd.com/products/portable-storage/my-passport-wireless-pro.html](WD
-My Passport Wireless Pro) backup device, which is basically a portable
-wifi NAS with SD card backup.
+and a [WD My Passport Wireless
+Pro](https://www.wd.com/products/portable-storage/my-passport-wireless-pro.html)
+backup device, which is basically a portable wifi NAS with SD card
+backup.
 
 The Passport device can serve access to the downloaded photos - it's
 slow, but it's sufficient for basic review, and for selecting
