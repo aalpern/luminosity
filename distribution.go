@@ -112,6 +112,9 @@ func convertDistribution(rows *sql.Rows, fn distributionConvertor) (Distribution
 // Distribution Queries
 // ----------------------------------------------------------------------
 
+// GetPhotoCountsByDate returns a distribution list of the number of
+// photos shot by calendar date for every date present in the
+// catalog. Empty dates are NOT represented in the returned list.
 func (c *Catalog) GetPhotoCountsByDate() (DistributionList, error) {
 	const query = `
 SELECT 0,
@@ -132,6 +135,9 @@ func (a ByDate) Less(i, j int) bool {
 	return a[i].Label < a[j].Label
 }
 
+// GetLensDistribution returns a distribution list indicating the
+// number of photos shot with each different lens present in the EXIF
+// metadata.
 func (c *Catalog) GetLensDistribution() (DistributionList, error) {
 	const query = `
 SELECT    LensRef.id_local      as id,
@@ -148,6 +154,9 @@ ORDER BY  count desc
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
+// GetFocalLengthDistribution returns a distribution list indicating
+// the number of photos shot at each different local length present in
+// the EXIF metadata.
 func (c *Catalog) GetFocalLengthDistribution() (DistributionList, error) {
 	const query = `
 SELECT id_local          as id,
@@ -162,6 +171,9 @@ ORDER BY    count DESC
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
+// GetCameraDistribution returns a distribution list indicating the
+// number of photos shot with each different camera present in the
+// EXIF metadata.
 func (c *Catalog) GetCameraDistribution() (DistributionList, error) {
 	const query = `
 SELECT    Camera.id_local       as id,
@@ -178,6 +190,9 @@ ORDER BY  count desc
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
+// GetApertureDistribution returns a distribution list indicating the
+// number of photos shot with each aperture setting present in the
+// EXIF metadata.
 func (c *Catalog) GetApertureDistribution() (DistributionList, error) {
 	const query = `
 SELECT   aperture,
@@ -200,6 +215,9 @@ ORDER BY aperture
 	})
 }
 
+// GetExposureTimeDistribution returns a distribution list indicating
+// the number of photos shot with each different exposure time
+// (shutter speed) setting present in the EXIF metadata.
 func (c *Catalog) GetExposureTimeDistribution() (DistributionList, error) {
 	const query = `
 SELECT   shutterSpeed,
@@ -222,6 +240,10 @@ ORDER BY shutterSpeed
 	})
 }
 
+// GetEditCountDistribution returns a distribution list grouping
+// counts of photos according to the number of edits that have been
+// made to them (e.g. N photos have 1 edit, M photos have 2 edits, NN
+// photos have 12 edits, etc....)
 func (c *Catalog) GetEditCountDistribution() (DistributionList, error) {
 	const query = `
 SELECT edit_count as id, 
@@ -240,6 +262,8 @@ GROUP BY edit_count
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
+// GetKeywordDistribution returns a distribution list indicating the
+// number of photos tagged with each keyword present in the catalog.
 func (c *Catalog) GetKeywordDistribution() (DistributionList, error) {
 	const query = `
 SELECT 	    k.id_local    as id, 
@@ -253,6 +277,12 @@ ORDER BY 	p.occurrences desc
 	return c.queryDistribution(query, defaultDistributionConvertor)
 }
 
+// GetSunburstStats returns a list of rows of the number of photos
+// shot grouped by multiple criteria, suitable for transforming into a
+// tree structure capable of feeding a sunburst graph
+// representation. The data is not re-organized into a tree here in
+// order to allow one set of data to be repartitioned at runtime in a
+// web UI (see the accompaning luminosity.js Javascript code).
 func (c *Catalog) GetSunburstStats() ([]map[string]string, error) {
 	const query = `
 SELECT    count(*)          as count,

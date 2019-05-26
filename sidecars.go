@@ -66,6 +66,11 @@ type SidecarFileRecord struct {
 	OriginalPath string
 }
 
+// GetSidecarCount returns the number of sidecar files that have
+// entries in the catalog. This is independent of whether or not those
+// files are known to actually exist on disk or not. To get the
+// current status of what sidecar files exist and how much space they
+// occupy, use GetSidecarFileStats().
 func (c *Catalog) GetSidecarCount() (int, error) {
 	row := c.db.QueryRow("select count(*) " + sidecarFrom)
 	count := -1
@@ -73,6 +78,9 @@ func (c *Catalog) GetSidecarCount() (int, error) {
 	return count, err
 }
 
+// GetSidecarFileStats returns summary statistics about a catalog's
+// sidecar files, including how much space they take up on disk, and
+// how many are missing.
 func (c *Catalog) GetSidecarFileStats() (*SidecarFileStats, error) {
 	var count, missingSidecars, missingOriginals uint
 	var size int64
@@ -108,6 +116,8 @@ func (c *Catalog) GetSidecarFileStats() (*SidecarFileStats, error) {
 	}, err
 }
 
+// ForEachSidecar takes a callback function and executes it once for
+// every sidecar record in the catalog.
 func (c *Catalog) ForEachSidecar(handler func(*SidecarFileRecord) error) error {
 	rows, err := c.query("for_each_sidecar", sidecarColumns+sidecarFrom)
 	if err != nil {

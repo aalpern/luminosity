@@ -84,6 +84,7 @@ ORDER BY creationId, name, parent
 	if rows, err := c.query("get_collections", query); err != nil {
 		return nil, err
 	} else {
+		defer rows.Close()
 		var collections []*Collection
 		for rows.Next() {
 			c := &Collection{}
@@ -114,17 +115,24 @@ ORDER BY parent, name
 	if c.CollectionTree != nil {
 		return c.CollectionTree, nil
 	}
+
 	if rows, err := c.query("get_collection_tree", query); err != nil {
 		return nil, err
 	} else {
+		defer rows.Close()
+
+		// Set up dummy root node
 		root := &Collection{
 			Name:     null.StringFrom("Root"),
 			Children: []*Collection{},
 			Type:     CollectionTypeGroup,
 		}
+		// Working storage to look up parent nodes based on the parent
+		// ID returned from the SQL query
 		collections := map[string]*Collection{}
 
-		defer rows.Close()
+		// First pass - ensure all collections are instantiated and
+		// stored in the map
 		for rows.Next() {
 			c := &Collection{}
 			if err := c.scan(rows); err != nil {
@@ -133,6 +141,8 @@ ORDER BY parent, name
 			collections[c.Id] = c
 		}
 
+		// Second pass - construct the tree, with back-links to
+		// parents
 		for _, c := range collections {
 			parent := root
 			parentid := c.ParentId.ValueOrZero()

@@ -2,10 +2,7 @@ package luminosity
 
 import (
 	"database/sql"
-	"os"
-	"path/filepath"
 	"sort"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/guregu/null.v3"
@@ -75,6 +72,7 @@ func (c *Catalog) queryStringMap(label, sql string) ([]map[string]string, error)
 	if rows, err := c.query(label, sql); err != nil {
 		return results, err
 	} else {
+		defer rows.Close()
 		for rows.Next() {
 			columns, err := rows.Columns()
 			if err != nil {
@@ -126,70 +124,4 @@ func convertNamedObjects(rows *sql.Rows) (NamedObjectList, error) {
 		"count":  len(objects),
 	}).Debug()
 	return objects, nil
-}
-
-// ----------------------------------------------------------------------
-
-const (
-	CatalogExtension        = "lrcat"
-	CatalogDataDirExtension = "lrdata"
-)
-
-// FindCatalogs returns the full pathnames of every Lightroom catalog
-// (.lrcat) file in the list of inputs paths. Any directories in paths
-// will be walked recursively.
-func FindCatalogs(paths ...string) []string {
-	found := make([]string, 0, len(paths))
-
-	// For each path in the input
-	for _, path := range paths {
-		info, err := os.Stat(path)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"action": "find_catalogs",
-				"status": "stat_error",
-				"path":   path,
-				"error":  "err",
-			}).Warn("Cannot stat path")
-			continue
-		}
-
-		// Process files
-		if !info.IsDir() {
-			if strings.HasSuffix(path, CatalogExtension) {
-				found = append(found, path)
-			}
-		} else {
-			// Process directories
-			children := findCatalogsInDir(path)
-			found = append(found, children...)
-		}
-	}
-	return found
-}
-
-func findCatalogsInDir(path string) []string {
-	found := make([]string, 0, 8)
-
-	filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.WithFields(log.Fields{
-				"action": "find_catalogs",
-				"status": "walk_error",
-				"path":   path,
-				"error":  "err",
-			}).Warn("Error walking path")
-		} else if !info.IsDir() {
-			found = append(found, FindCatalogs(p)...)
-		} else if info.IsDir() {
-			// Skip the .lrdata directories which contain the
-			// potentially huge number of cached image previews
-			if strings.HasSuffix(p, CatalogDataDirExtension) {
-				return filepath.SkipDir
-			}
-		}
-		return nil
-	})
-
-	return found
 }
