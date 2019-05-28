@@ -8,19 +8,28 @@ import (
 type CatalogPreviews struct {
 	Catalog *Catalog
 
-	db *DB
+	root string
+	db   *DB
 }
 
-// OpenCatalogPreviews
 func openCatalogPreviews(cat *Catalog) (*CatalogPreviews, error) {
-	p := &CatalogPreviews{Catalog: cat}
+	p := &CatalogPreviews{
+		Catalog: cat,
+		root:    previewsRootPath(cat),
+	}
 
-	if db, err := OpenDB(p.PreviewsDbPath()); err != nil {
+	if db, err := OpenDB(p.DbPath()); err != nil {
 		return nil, err
 	} else {
 		p.db = db
 		return p, nil
 	}
+}
+
+func previewsRootPath(cat *Catalog) string {
+	dir, file := filepath.Split(cat.Path())
+	basename := strings.TrimSuffix(file, CatalogExtension)
+	return filepath.Join(dir, basename+" Previews.lrdata")
 }
 
 func (c *CatalogPreviews) Close() error {
@@ -30,12 +39,10 @@ func (c *CatalogPreviews) Close() error {
 	return nil
 }
 
-func (c *CatalogPreviews) PreviewsRootPath() string {
-	dir, cat := filepath.Split(c.Catalog.Path())
-	basename := strings.TrimSuffix(cat, CatalogExtension)
-	return filepath.Join(dir, basename+" Previews.lrdata")
+func (c *CatalogPreviews) Path() string {
+	return c.root
 }
 
-func (c *CatalogPreviews) PreviewsDbPath() string {
-	return filepath.Join(c.PreviewsRootPath(), "previews.db")
+func (c *CatalogPreviews) DbPath() string {
+	return filepath.Join(c.root, "previews.db")
 }
