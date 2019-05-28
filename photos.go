@@ -6,12 +6,13 @@ import (
 	"strconv"
 	"time"
 
-	"gopkg.in/guregu/null.v3"
+	null "gopkg.in/guregu/null.v3"
 )
 
 const (
 	kPhotoRecordSelect = `
-SELECT    image.id_local as id,
+SELECT    image.id_local,
+          image.id_global,
           rootFolder.absolutePath || folder.pathFromRoot || rootfile.baseName || '.' || rootfile.extension AS fullName,
           coalesce(Lens.value, 'Unknown') as Lens,
           coalesce(Camera.Value, 'Unknown') as Camera,
@@ -57,6 +58,7 @@ LEFT JOIN AgInternedIptcCreator     Creator    ON    Creator.id_local = iptc.ima
 // the Lightroom catalog.
 type PhotoRecord struct {
 	Id       string      `json:"id"`
+	IdGlobal string      `json:"id_global"`
 	FullName string      `json:"full_name"`
 	Lens     null.String `json:"lens"`
 	Camera   null.String `json:"camera"`
@@ -112,7 +114,7 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 	var shutterSpeedString null.String
 
 	err := row.Scan(
-		&p.Id, &p.FullName, &p.Lens, &p.Camera,
+		&p.Id, &p.IdGlobal, &p.FullName, &p.Lens, &p.Camera,
 		// Image
 		&p.FileFormat, &p.FileHeight, &p.FileWidth, &p.Orientation, &capTime, &p.Rating, &p.ColorLabels, &p.Pick,
 		// Exif
@@ -187,7 +189,7 @@ func (c *Catalog) GetPhotos() ([]*PhotoRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := c.query("get_photos",
+	rows, err := c.db.query("get_photos",
 		kPhotoRecordSelect+
 			kPhotoRecordFrom+
 			kPhotoRecordListOrderBy)

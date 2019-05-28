@@ -88,7 +88,7 @@ func defaultDistributionConvertor(rows *sql.Rows) (*DistributionEntry, error) {
 }
 
 func (c *Catalog) queryDistribution(sql string, fn distributionConvertor) (DistributionList, error) {
-	rows, err := c.query("query_distribution", sql)
+	rows, err := c.db.query("query_distribution", sql)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +300,7 @@ WHERE camera is not null and lens is not null
 GROUP BY camera, lens, aperture, focal_length, exposure
 ORDER BY camera, lens, aperture, focal_length, exposure, count
 `
-	if data, err := c.queryStringMap("sunburst_stats", query); err != nil {
+	if data, err := c.db.queryStringMap("sunburst_stats", query); err != nil {
 		return data, err
 	} else {
 		for _, record := range data {

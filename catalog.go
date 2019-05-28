@@ -2,18 +2,16 @@
 package luminosity
 
 import (
-	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	CatalogExtension        = "lrcat"
-	CatalogDataDirExtension = "lrdata"
+	CatalogExtension        = ".lrcat"
+	CatalogDataDirExtension = ".lrdata"
 )
 
 type catalog struct {
@@ -30,7 +28,13 @@ type catalog struct {
 // extracted from it.
 type Catalog struct {
 	catalog
-	db *sql.DB
+
+	// Connection to the primary catalog database file.
+	db *DB
+
+	// Preview store for the cached Lightroom previews, if
+	// present. This is initialized lazily.
+	previews *CatalogPreviews
 }
 
 // NewCatalog allocates and initializes a new Catalog instance without
@@ -43,7 +47,7 @@ func NewCatalog() *Catalog {
 // to the database file, but does not load any data. OpenCatalog will
 // fail if the catalog is currently open in Lightroom.
 func OpenCatalog(path string) (*Catalog, error) {
-	db, err := sql.Open("sqlite3", path)
+	db, err := OpenDB(path)
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +65,37 @@ func OpenCatalog(path string) (*Catalog, error) {
 	return cat, nil
 }
 
-// Close closes the underlying database file.
+func (c *Catalog) Path() string {
+	return c.Paths[0]
+}
+
+func (c *Catalog) Name() string {
+	return strings.TrimSuffix(filepath.Base(c.Path()), CatalogExtension)
+}
+
+func (c *Catalog) Previews() (*CatalogPreviews, error) {
+	if c.previews != nil {
+		return c.previews, nil
+	}
+	if p, err := openCatalogPreviews(c); err != nil {
+		return nil, err
+	} else {
+		c.previews = p
+		return c.previews, nil
+	}
+}
+
+// Close closes the underlying database file(s).
 func (c *Catalog) Close() error {
 	if c.db != nil {
-		return c.db.Close()
+		if err := c.db.Close(); err != nil {
+			return err
+		}
+	}
+	if c.previews != nil {
+		if err := c.previews.Close(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -131,7 +162,7 @@ func (c *Catalog) GetLenses() (NamedObjectList, error) {
 	if c.Lenses != nil {
 		return c.Lenses, nil
 	}
-	lenses, err := c.queryNamedObjects("select id_local, value from AgInternedExifLens")
+	lenses, err := c.db.queryNamedObjects("select id_local, value from AgInternedExifLens")
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +176,7 @@ func (c *Catalog) GetCameras() (NamedObjectList, error) {
 	if c.Cameras != nil {
 		return c.Cameras, nil
 	}
-	cameras, err := c.queryNamedObjects("select id_local, value from AgInternedExifCameraModel")
+	cameras, err := c.db.queryNamedObjects("select id_local, value from AgInternedExifCameraModel")
 	if err != nil {
 		return nil, err
 	}

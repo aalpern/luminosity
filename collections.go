@@ -81,7 +81,7 @@ ORDER BY creationId, name, parent
 	if c.Collections != nil {
 		return c.Collections, nil
 	}
-	if rows, err := c.query("get_collections", query); err != nil {
+	if rows, err := c.db.query("get_collections", query); err != nil {
 		return nil, err
 	} else {
 		defer rows.Close()
@@ -116,7 +116,7 @@ ORDER BY parent, name
 		return c.CollectionTree, nil
 	}
 
-	if rows, err := c.query("get_collection_tree", query); err != nil {
+	if rows, err := c.db.query("get_collection_tree", query); err != nil {
 		return nil, err
 	} else {
 		defer rows.Close()

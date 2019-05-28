@@ -34,3 +34,10 @@ deleting any images that were shot as JPG only.
 Since then, the codebase has evolved significantly thanks to my
 interests in [data
 visualization](https://monster.partyhat.co/article/lightroom-catalog-visualization/).
+
+## Reference
+
+* [Extract preview for lost images](https://helpx.adobe.com/lightroom-classic/kb/extract-previews-for-lost-images-lightroom.html). A Lua script for Lightroom Classic to extract image previews as jpegs, from Adobe support. 
+* [Lightroom SDK Downloads](https://console.adobe.io/downloads/lr)
+* [Linwood-F/DumpJPGs](https://github.com/Linwood-F/DumpJPGs)
+* [Chandler/lightroom_preview_exporter](https://github.com/Chandler/lightroom_preview_exporter)

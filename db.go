@@ -2,63 +2,32 @@ package luminosity
 
 import (
 	"database/sql"
-	"sort"
 
+	_ "github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/guregu/null.v3"
+	null "gopkg.in/guregu/null.v3"
 )
 
-type NamedObject struct {
-	Id   int64  `json:"id"`
-	Name string `json:"name"`
+type DB struct {
+	*sql.DB
 }
 
-type NamedObjectList []*NamedObject
-type NamedObjectMap map[string]*NamedObject
-
-type ByName NamedObjectList
-
-func (a ByName) Len() int           { return len(a) }
-func (a ByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
-
-func (l NamedObjectList) ToMap() NamedObjectMap {
-	m := NamedObjectMap{}
-	for _, o := range l {
-		m[o.Name] = o
+func OpenDB(path string) (*DB, error) {
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return nil, err
 	}
-	return m
+	return &DB{db}, nil
 }
 
-func (m NamedObjectMap) ToList() NamedObjectList {
-	l := NamedObjectList{}
-	for _, o := range m {
-		l = append(l, o)
-	}
-	sort.Sort(ByName(l))
-	return l
-}
-
-func (l NamedObjectList) Merge(other NamedObjectList) NamedObjectList {
-	m := l.ToMap()
-	for _, o := range other {
-		if _, ok := m[o.Name]; !ok {
-			m[o.Name] = o
-		}
-	}
-	l2 := m.ToList()
-	sort.Sort(ByName(l2))
-	return l2
-}
-
-func (c *Catalog) query(label, sql string) (*sql.Rows, error) {
+func (db *DB) query(label, sql string) (*sql.Rows, error) {
 	fields := log.Fields{
 		"action": "query",
 		"status": "ok",
 		"label":  label,
 		"sql":    sql,
 	}
-	rows, err := c.db.Query(sql)
+	rows, err := db.DB.Query(sql)
 	if err != nil {
 		fields["status"] = "error"
 		fields["error"] = err
@@ -67,9 +36,9 @@ func (c *Catalog) query(label, sql string) (*sql.Rows, error) {
 	return rows, err
 }
 
-func (c *Catalog) queryStringMap(label, sql string) ([]map[string]string, error) {
+func (db *DB) queryStringMap(label, sql string) ([]map[string]string, error) {
 	var results []map[string]string
-	if rows, err := c.query(label, sql); err != nil {
+	if rows, err := db.query(label, sql); err != nil {
 		return results, err
 	} else {
 		defer rows.Close()
@@ -99,8 +68,8 @@ func (c *Catalog) queryStringMap(label, sql string) ([]map[string]string, error)
 	return results, nil
 }
 
-func (c *Catalog) queryNamedObjects(sql string) (NamedObjectList, error) {
-	rows, err := c.query("query_named_objects", sql)
+func (db *DB) queryNamedObjects(sql string) (NamedObjectList, error) {
+	rows, err := db.query("query_named_objects", sql)
 	if err != nil {
 		return nil, err
 	}

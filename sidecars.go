@@ -119,7 +119,7 @@ func (c *Catalog) GetSidecarFileStats() (*SidecarFileStats, error) {
 // ForEachSidecar takes a callback function and executes it once for
 // every sidecar record in the catalog.
 func (c *Catalog) ForEachSidecar(handler func(*SidecarFileRecord) error) error {
-	rows, err := c.query("for_each_sidecar", sidecarColumns+sidecarFrom)
+	rows, err := c.db.query("for_each_sidecar", sidecarColumns+sidecarFrom)
 	if err != nil {
 		return err
 	}
