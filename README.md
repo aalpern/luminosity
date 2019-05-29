@@ -41,3 +41,5 @@ visualization](https://monster.partyhat.co/article/lightroom-catalog-visualizati
 * [Lightroom SDK Downloads](https://console.adobe.io/downloads/lr)
 * [Linwood-F/DumpJPGs](https://github.com/Linwood-F/DumpJPGs)
 * [Chandler/lightroom_preview_exporter](https://github.com/Chandler/lightroom_preview_exporter)
+* [perlmonk/lrpreview2jpg.pl](https://gist.github.com/perlmonk/5ad2535433a9ee7b33d9)
+* [arnar/lightroommate](https://github.com/arnar/lightroommate)
