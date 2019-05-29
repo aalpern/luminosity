@@ -36,6 +36,15 @@ func (db *DB) query(label, sql string) (*sql.Rows, error) {
 	return rows, err
 }
 
+func (db *DB) queryRow(label, sql string) *sql.Row {
+	log.WithFields(log.Fields{
+		"action": "query_row",
+		"label":  label,
+		"sql":    sql,
+	}).Debug("Executed query")
+	return db.DB.QueryRow(sql)
+}
+
 func (db *DB) queryStringMap(label, sql string) ([]map[string]string, error) {
 	var results []map[string]string
 	if rows, err := db.query(label, sql); err != nil {

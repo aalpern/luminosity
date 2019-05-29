@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"path/filepath"
 	"strings"
 
@@ -77,18 +75,4 @@ func CmdStats(app *cli.Cli) {
 			}).Info("Complete")
 		}
 	})
-}
-
-func write(path string, data interface{}, prettyPrint bool) {
-	log.WithFields(log.Fields{
-		"action": "write",
-		"file":   path,
-	}).Debug("Writing JSON")
-	var js []byte
-	if prettyPrint {
-		js, _ = json.MarshalIndent(data, "", "  ")
-	} else {
-		js, _ = json.Marshal(data)
-	}
-	ioutil.WriteFile(path, js, 0644)
 }

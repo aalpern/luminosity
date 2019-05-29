@@ -72,7 +72,7 @@ type SidecarFileRecord struct {
 // current status of what sidecar files exist and how much space they
 // occupy, use GetSidecarFileStats().
 func (c *Catalog) GetSidecarCount() (int, error) {
-	row := c.db.QueryRow("select count(*) " + sidecarFrom)
+	row := c.db.queryRow("get_sidecar_count", "select count(*) "+sidecarFrom)
 	count := -1
 	err := row.Scan(&count)
 	return count, err

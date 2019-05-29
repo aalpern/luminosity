@@ -57,7 +57,7 @@ LEFT JOIN AgInternedIptcCreator     Creator    ON    Creator.id_local = iptc.ima
 // photo into a single record, extracted from 8 different tables in
 // the Lightroom catalog.
 type PhotoRecord struct {
-	Id       string      `json:"id"`
+	Id       int         `json:"id"`
 	IdGlobal string      `json:"id_global"`
 	FullName string      `json:"full_name"`
 	Lens     null.String `json:"lens"`
@@ -173,7 +173,7 @@ func (c *Catalog) ForEachPhoto(handler func(*PhotoRecord) error) error {
 // GetPhotoCount returns a simple count of the total number of images
 // stored in the catalog.
 func (c *Catalog) GetPhotoCount() (int64, error) {
-	row := c.db.QueryRow("select count(*) " + kPhotoRecordFrom)
+	row := c.db.queryRow("get_photo_count", "select count(*) "+kPhotoRecordFrom)
 	var count int64 = -1
 	err := row.Scan(&count)
 	return count, err
