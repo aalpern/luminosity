@@ -3,6 +3,8 @@ package luminosity
 import (
 	"database/sql"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"time"
 
@@ -92,6 +94,9 @@ type PhotoRecord struct {
 	Caption   null.String `json:"caption"`
 	Copyright null.String `json:"copyright"`
 	Creator   null.String `json:"creator"`
+
+	// Pointer back to the catalog that contains this record
+	Catalog *Catalog `json:"-"`
 }
 
 func parseTime(s string) (time.Time, error) {
@@ -154,6 +159,39 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 	return nil
 }
 
+// GetPreview returns the highest resolution preview available for the
+// given photo, if one exists.
+func (p *PhotoRecord) GetPreview() ([]byte, error) {
+	previews, err := p.Catalog.Previews()
+	if err != nil {
+		return nil, err
+	}
+
+	ci, err := previews.GetPhotoCacheInfo(p)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.Open(ci.Path())
+	if err != nil {
+		return nil, err
+	}
+
+	headers, err := ReadPreviewHeaders(f)
+	if err != nil {
+		return nil, err
+	}
+
+	h := headers[len(headers)-1]
+	f.Seek(h.DataOffset, io.SeekStart)
+	data := make([]byte, h.Length)
+	if _, err := f.Read(data); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 // ForEachPhoto takes a handler function and calls it successively on
 // a PhotoRecord structure for every photo in the catalog. Returning
 // an error from the handler function will stop the iteration.
@@ -200,7 +238,9 @@ func (c *Catalog) GetPhotos() ([]*PhotoRecord, error) {
 
 	photos := make([]*PhotoRecord, 0, count)
 	for rows.Next() {
-		p := &PhotoRecord{}
+		p := &PhotoRecord{
+			Catalog: c,
+		}
 		err = p.scan(rows)
 		if err != nil {
 			return photos, err
