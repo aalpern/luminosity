@@ -11,6 +11,7 @@ import (
 var (
 	errorNotEnoughBytesForMarker = fmt.Errorf("Not enough bytes for marker")
 	errorUnknownMarker           = fmt.Errorf("Unknown marker")
+	errorUninitializedHeader     = fmt.Errorf("Uninitialized header")
 )
 
 const (
@@ -33,10 +34,55 @@ type PreviewHeader struct {
 	PreviewHeaderFixed
 	DataOffset int64
 	Name       string
+	pf         *PreviewFile
 }
 
-func (h PreviewHeader) NameLength() int {
-	return int(h.HeaderLength) - 24
+func (ph *PreviewHeader) ReadData() ([]byte, error) {
+	if ph.pf == nil || ph.pf.File == nil {
+		return nil, errorUninitializedHeader
+	}
+
+	_, err := ph.pf.Seek(ph.DataOffset, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+
+	data := make([]byte, ph.Length)
+	if _, err := ph.pf.Read(data); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+// PreviewFile understands the structure of the .lrprev files in the
+// Lightroom catalog previews directory and can extract the JPG data
+// contained therein.
+type PreviewFile struct {
+	*os.File
+	Sections []*PreviewHeader
+}
+
+// OpenPreviewFile opens a Lightroom preview file and parses the
+// embedded section headers. The underlying File object is left open,
+// and must be closed with Close() when done.
+func OpenPreviewFile(path string) (*PreviewFile, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	headers, err := readHeaders(f)
+	if err != nil {
+		return nil, err
+	}
+
+	pf := &PreviewFile{f, headers}
+	for _, h := range headers {
+		h.pf = pf
+	}
+
+	return pf, nil
 }
 
 func readMarker(f *os.File) error {
@@ -64,7 +110,8 @@ func readHeader(f *os.File) (*PreviewHeader, error) {
 		return nil, err
 	}
 
-	name := make([]byte, header.NameLength())
+	// 24 is the length of PreviewHeaderFixed + the "AgHg" marker
+	name := make([]byte, header.HeaderLength-24)
 	if _, err := f.Read(name); err != nil {
 		return nil, err
 	} else {
@@ -82,7 +129,7 @@ func readHeader(f *os.File) (*PreviewHeader, error) {
 	return &header, nil
 }
 
-func ReadPreviewHeaders(f *os.File) ([]*PreviewHeader, error) {
+func readHeaders(f *os.File) ([]*PreviewHeader, error) {
 	f.Seek(0, io.SeekStart)
 
 	headers := make([]*PreviewHeader, 0, 8)

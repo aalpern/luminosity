@@ -3,8 +3,6 @@ package luminosity
 import (
 	"database/sql"
 	"fmt"
-	"io"
-	"os"
 	"strconv"
 	"time"
 
@@ -172,24 +170,8 @@ func (p *PhotoRecord) GetPreview() ([]byte, error) {
 		return nil, err
 	}
 
-	f, err := os.Open(ci.Path())
-	if err != nil {
-		return nil, err
-	}
-
-	headers, err := ReadPreviewHeaders(f)
-	if err != nil {
-		return nil, err
-	}
-
-	h := headers[len(headers)-1]
-	f.Seek(h.DataOffset, io.SeekStart)
-	data := make([]byte, h.Length)
-	if _, err := f.Read(data); err != nil {
-		return nil, err
-	}
-
-	return data, nil
+	pf, err := OpenPreviewFile(ci.Path())
+	return pf.Sections[len(pf.Sections)-1].ReadData()
 }
 
 // ForEachPhoto takes a handler function and calls it successively on
