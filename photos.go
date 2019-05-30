@@ -171,6 +171,7 @@ func (p *PhotoRecord) GetPreview() ([]byte, error) {
 	}
 
 	pf, err := OpenPreviewFile(ci.Path())
+	defer pf.Close()
 	return pf.Sections[len(pf.Sections)-1].ReadData()
 }
 
