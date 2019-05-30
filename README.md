@@ -8,6 +8,15 @@ Here's something you can do with the output -
 Documentation is available on
 [godoc.org](https://godoc.org/github.com/aalpern/luminosity).
 
+### Capabilities
+
+* Produce summary statistics on a variety of dimensions - photos shot
+  by day, by camera and lens, by aperture or exposure, etc...
+* Produce hierarchical summaries for rendering Sunburst charts with
+  the accompanying JavaScript code (see above)
+* Extract JPEG previews from the catalog preview cache
+* Purge sidecar files with the CLI commands
+
 ## Origins
 
 This library began as a very simple script to purge sidecar files from
