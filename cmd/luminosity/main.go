@@ -26,6 +26,7 @@ func main() {
 	CmdStats(app)
 	CmdSidecars(app)
 	CmdSunburst(app)
+	CmdExtractPreviews(app)
 
 	app.Run(os.Args)
 }
