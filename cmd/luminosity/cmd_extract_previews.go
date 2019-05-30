@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/aalpern/luminosity"
 	"github.com/jawher/mow.cli"
@@ -84,7 +85,7 @@ func CmdExtractPreviews(app *cli.Cli) {
 					}).Warn("Error retrieving photo preview, skipping")
 					return nil
 				} else {
-					if err := ioutil.WriteFile(filename, preview, 0644); err != nil {
+					if err := ioutil.WriteFile(filepath.Join(*outdir, filename), preview, 0644); err != nil {
 						log.WithFields(log.Fields{
 							"action":   "write",
 							"status":   "error",
