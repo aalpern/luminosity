@@ -47,6 +47,10 @@ func NewCatalog() *Catalog {
 // to the database file, but does not load any data. OpenCatalog will
 // fail if the catalog is currently open in Lightroom.
 func OpenCatalog(path string) (*Catalog, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, err
+	}
+
 	db, err := OpenDB(path)
 	if err != nil {
 		return nil, err

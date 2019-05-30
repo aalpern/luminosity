@@ -13,6 +13,7 @@ const (
 	kPhotoRecordSelect = `
 SELECT    image.id_local,
           image.id_global,
+          rootfile.baseName,
           rootFolder.absolutePath || folder.pathFromRoot || rootfile.baseName || '.' || rootfile.extension AS fullName,
           coalesce(Lens.value, 'Unknown') as Lens,
           coalesce(Camera.Value, 'Unknown') as Camera,
@@ -59,6 +60,7 @@ LEFT JOIN AgInternedIptcCreator     Creator    ON    Creator.id_local = iptc.ima
 type PhotoRecord struct {
 	Id       int         `json:"id"`
 	IdGlobal string      `json:"id_global"`
+	BaseName string      `json:"base_name"`
 	FullName string      `json:"full_name"`
 	Lens     null.String `json:"lens"`
 	Camera   null.String `json:"camera"`
@@ -117,7 +119,7 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 	var shutterSpeedString null.String
 
 	err := row.Scan(
-		&p.Id, &p.IdGlobal, &p.FullName, &p.Lens, &p.Camera,
+		&p.Id, &p.IdGlobal, &p.BaseName, &p.FullName, &p.Lens, &p.Camera,
 		// Image
 		&p.FileFormat, &p.FileHeight, &p.FileWidth, &p.Orientation, &capTime, &p.Rating, &p.ColorLabels, &p.Pick,
 		// Exif
