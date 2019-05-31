@@ -64,13 +64,13 @@ func MergeDistributions(dists ...DistributionList) DistributionList {
 	return list
 }
 
-func (dl DistributionList) Merge(dists ...DistributionList) DistributionList {
-	return MergeDistributions(append(dists, dl)...)
+func (l DistributionList) Merge(dists ...DistributionList) DistributionList {
+	return MergeDistributions(append(dists, l)...)
 }
 
-func (a DistributionList) Len() int           { return len(a) }
-func (a DistributionList) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a DistributionList) Less(i, j int) bool { return a[i].Label < a[j].Label }
+func (l DistributionList) Len() int           { return len(l) }
+func (l DistributionList) Swap(i, j int)      { l[i], l[j] = l[j], l[i] }
+func (l DistributionList) Less(i, j int) bool { return l[i].Label < l[j].Label }
 
 type distributionConvertor func(*sql.Rows) (*DistributionEntry, error)
 
