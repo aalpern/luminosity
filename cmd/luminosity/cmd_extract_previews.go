@@ -73,6 +73,7 @@ func CmdExtractPreviews(app *cli.Cli) {
 			defer previews.Close()
 
 			// Process the photos
+			var successCount, errorCount int
 			catalog.ForEachPhoto(func(photo *luminosity.PhotoRecord) error {
 				filename := photo.BaseName + ".jpg"
 				preview, err := photo.GetPreview()
@@ -83,6 +84,7 @@ func CmdExtractPreviews(app *cli.Cli) {
 						"photo":  photo.BaseName,
 						"error":  err,
 					}).Warn("Error retrieving photo preview, skipping")
+					errorCount++
 					return nil
 				} else {
 					if err := ioutil.WriteFile(filepath.Join(*outdir, filename), preview, 0644); err != nil {
@@ -94,9 +96,22 @@ func CmdExtractPreviews(app *cli.Cli) {
 						}).Warn("Error writing preview file")
 						return err
 					}
+					log.WithFields(log.Fields{
+						"action":   "write",
+						"status":   "ok",
+						"filename": filename,
+					}).Info("Wrote preview")
+					successCount++
 				}
 				return nil
 			})
+
+			log.WithFields(log.Fields{
+				"action":        "extract",
+				"status":        "done",
+				"success_count": successCount,
+				"error_count":   errorCount,
+			}).Info("Complete")
 		}
 	})
 }
