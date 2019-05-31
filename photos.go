@@ -159,9 +159,31 @@ func (p *PhotoRecord) scan(row *sql.Rows) error {
 	return nil
 }
 
+var (
+	ErrorNoPreviews = fmt.Errorf("No embedded previews available")
+)
+
 // GetPreview returns the highest resolution preview available for the
 // given photo, if one exists.
 func (p *PhotoRecord) GetPreview() ([]byte, error) {
+	pf, err := p.OpenPreviewFile()
+	if err != nil {
+		return nil, err
+	}
+	defer pf.Close()
+
+	if len(pf.Sections) < 2 {
+		return nil, ErrorNoPreviews
+	}
+
+	return pf.Sections[len(pf.Sections)-1].ReadData()
+}
+
+// OpenPreviewFile locates and opens the preview cache file for the
+// given photo record, if one exists, and returns it with its section
+// headers parsed.  The underlying file object is left open, and
+// should be closed with Close() when done.
+func (p *PhotoRecord) OpenPreviewFile() (*PreviewFile, error) {
 	previews, err := p.Catalog.Previews()
 	if err != nil {
 		return nil, err
@@ -172,9 +194,7 @@ func (p *PhotoRecord) GetPreview() ([]byte, error) {
 		return nil, err
 	}
 
-	pf, err := OpenPreviewFile(ci.Path())
-	defer pf.Close()
-	return pf.Sections[len(pf.Sections)-1].ReadData()
+	return OpenPreviewFile(ci.Path())
 }
 
 // ForEachPhoto takes a handler function and calls it successively on
