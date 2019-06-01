@@ -72,6 +72,12 @@ func CmdExtractPreviews(app *cli.Cli) {
 			}
 			defer previews.Close()
 
+			log.WithFields(log.Fields{
+				"action":  "extract",
+				"status":  "start",
+				"catalog": *path,
+			}).Info("Extracting previews")
+
 			// Process the photos
 			var successCount, errorCount int
 			catalog.ForEachPhoto(func(photo *luminosity.PhotoRecord) error {
