@@ -6,29 +6,40 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/jawher/mow.cli"
+	"github.com/spf13/cobra"
+
 	log "github.com/sirupsen/logrus"
 )
 
 func main() {
-	app := cli.App("luminosity", "Operate on Lightroom catalogs")
+	var verbose bool
 
-	app.Spec = "[--verbose]"
-
-	verbose := app.BoolOpt("v verbose", false, "Enable debug logging")
-
-	app.Before = func() {
-		if *verbose {
-			log.SetLevel(log.DebugLevel)
-		}
+	cmd := &cobra.Command{
+		Use:   "luminosity [--verbose]",
+		Short: "Operate on Lightroom catalogs",
+		Long: `luminosity is a CLI tool for the luminosity library,
+providing commands to performance various operations 
+on Adobe Lightroom catalogs, such as generating 
+analytics data for usage reports, extracting previews,
+and managing sidecars.`,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if verbose {
+				log.SetLevel(log.DebugLevel)
+			}
+		},
 	}
 
-	CmdStats(app)
-	CmdSidecars(app)
-	CmdSunburst(app)
-	CmdExtractPreviews(app)
+	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 
-	app.Run(os.Args)
+	cmd.AddCommand(CmdSunburst())
+	cmd.AddCommand(CmdStats())
+	//	cmd.AddCommand(CmdSidecars())
+	cmd.AddCommand(CmdExtractPreviews())
+
+	if err := cmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
 
 func write(path string, data interface{}, prettyPrint bool) {

@@ -2,24 +2,21 @@ package main
 
 import (
 	"github.com/aalpern/luminosity"
-	"github.com/jawher/mow.cli"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
-func CmdSunburst(app *cli.Cli) {
-	app.Command("sunburst", "Generate stats for rendering sunburst graphs", func(cmd *cli.Cmd) {
+func CmdSunburst() *cobra.Command {
+	var outfile string
+	var prettyPrint bool
 
-		cmd.Spec = "[--outfile] [--pretty-print] CATALOG"
-
-		outfile := cmd.StringOpt("o outfile", "sunburst.json",
-			"Path to output file")
-		prettyPrint := cmd.BoolOpt("p pretty-print", false,
-			"Format the JSON output indented for human readability")
-		catalog := cmd.StringArg("CATALOG", "",
-			"Catalog to process")
-
-		cmd.Action = func() {
-			cat, err := luminosity.OpenCatalog(*catalog)
+	cmd := &cobra.Command{
+		Use:   "sunburst [--outfile] [--pretty-print] CATALOG",
+		Short: "Generate stats for rendering sunburst graphs",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			catalog := args[0]
+			cat, err := luminosity.OpenCatalog(catalog)
 			if err != nil {
 				log.WithFields(log.Fields{
 					"action":  "catalog_open",
@@ -39,7 +36,14 @@ func CmdSunburst(app *cli.Cli) {
 				return
 			}
 
-			write(*outfile, data, *prettyPrint)
-		}
-	})
+			write(outfile, data, prettyPrint)
+		},
+	}
+
+	cmd.Flags().StringVarP(&outfile, "outfile", "o", "sunburst.json",
+		"Output file for sunburst chart JSON data")
+	cmd.Flags().BoolVarP(&prettyPrint, "pretty-print", "p", false,
+		"Format the JSON output indented for human readability")
+
+	return cmd
 }
