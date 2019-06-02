@@ -17,11 +17,12 @@ func main() {
 	cmd := &cobra.Command{
 		Use:   "luminosity [--verbose]",
 		Short: "Operate on Lightroom catalogs",
-		Long: `luminosity is a CLI tool for the luminosity library,
-providing commands to performance various operations 
-on Adobe Lightroom catalogs, such as generating 
-analytics data for usage reports, extracting previews,
-and managing sidecars.`,
+		Long: `
+luminosity is a CLI tool for the luminosity library, providing
+commands to performance various operations on Adobe Lightroom
+catalogs, such as generating analytics data for usage reports,
+extracting previews, and managing sidecars.
+`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if verbose {
 				log.SetLevel(log.DebugLevel)
