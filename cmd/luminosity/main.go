@@ -31,10 +31,11 @@ and managing sidecars.`,
 
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 
-	cmd.AddCommand(CmdSunburst())
-	cmd.AddCommand(CmdStats())
-	//	cmd.AddCommand(CmdSidecars())
-	cmd.AddCommand(CmdExtractPreviews())
+	cmd.AddCommand(
+		CmdSunburst(),
+		CmdStats(),
+		CmdSidecars(),
+		CmdExtractPreviews())
 
 	if err := cmd.Execute(); err != nil {
 		fmt.Println(err)
