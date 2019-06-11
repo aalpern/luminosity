@@ -15,7 +15,13 @@ var (
 )
 
 const (
+	// PreviewHeaderMarker is a sequence of bytes present at the start
+	// of each preview header section in the .lrprev file.
 	PreviewHeaderMarker = "AgHg"
+
+	// PreviewHeaderFixedLength is the length, in bytes, of a
+	// serialized PreviewHeaderFixed and the "AgHg" header marker.
+	PreviewHeaderFixedLength = 24
 )
 
 type PreviewHeaderFixed struct {
@@ -28,8 +34,9 @@ type PreviewHeaderFixed struct {
 	Padding      uint64 // 8
 }
 
-// PreviewHeader represents the header sections for the different
-// preview resolutions embedded in a .lrprev file.
+// PreviewHeader represents a single header section of a .lrprev file,
+// which stores the offset and size information for one of the
+// embedded preview JPEG images.
 type PreviewHeader struct {
 	PreviewHeaderFixed
 	DataOffset int64
@@ -37,6 +44,8 @@ type PreviewHeader struct {
 	pf         *PreviewFile
 }
 
+// ReadData reads the raw JPEG data from the preview file, for the
+// given header.
 func (ph *PreviewHeader) ReadData() ([]byte, error) {
 	if ph.pf == nil || ph.pf.File == nil {
 		return nil, errorUninitializedHeader
@@ -101,26 +110,35 @@ func readMarker(f *os.File) error {
 }
 
 func readHeader(f *os.File) (*PreviewHeader, error) {
+	// Read the marker - the file should be position at the start of a
+	// valid preview header marker when readHeader() is called.
 	if err := readMarker(f); err != nil {
 		return nil, err
 	}
 
+	// Read the fixed section of the current header, which will tell
+	// us how much data we need to read the variable section (the
+	// header name).
 	var header PreviewHeader
 	if err := binary.Read(f, binary.BigEndian, &header.PreviewHeaderFixed); err != nil {
 		return nil, err
 	}
 
-	// 24 is the length of PreviewHeaderFixed + the "AgHg" marker
-	name := make([]byte, header.HeaderLength-24)
+	// Read the data containing the name of the preview, eliminating
+	// trailing null characters.
+	name := make([]byte, header.HeaderLength-PreviewHeaderFixedLength)
 	if _, err := f.Read(name); err != nil {
 		return nil, err
 	} else {
 		header.Name = strings.Split(string(name), "\u0000")[0]
 	}
 
+	// Record the current file pointer position, which is the start of
+	// the data section for the preview image.
 	offset, _ := f.Seek(0, io.SeekCurrent)
 	header.DataOffset = offset
 
+	// Advance the file pointer to the start of the next header
 	_, err := f.Seek(int64(header.Length+header.Padding), io.SeekCurrent)
 	if err != nil {
 		return &header, err
@@ -129,6 +147,9 @@ func readHeader(f *os.File) (*PreviewHeader, error) {
 	return &header, nil
 }
 
+// readHeader reads the preview headers for every preview embedded in
+// the .lrprev file. They are returned in the order they appear in the
+// file.
 func readHeaders(f *os.File) ([]*PreviewHeader, error) {
 	f.Seek(0, io.SeekStart)
 
