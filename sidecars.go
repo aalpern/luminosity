@@ -126,7 +126,7 @@ func (c *Catalog) ForEachSidecar(handler func(*SidecarFileRecord) error) error {
 	defer rows.Close()
 	for rows.Next() {
 		r := &SidecarFileRecord{}
-		err = rows.Scan(&r.RootPath, &r.FilePath, &r.FileName, &r.Extension, &r.SidecarExtension)
+		err = rows.Scan(&r.PhotoId, &r.RootPath, &r.FilePath, &r.FileName, &r.Extension, &r.SidecarExtension)
 		if err != nil {
 			return err
 		}
